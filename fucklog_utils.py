@@ -35,6 +35,27 @@ def geoip_from_ip(IP):
 	except:
 		return 'N/A'
 
+def get_cidr(category):
+	# ricevo la discriminante category (equivale alla colonna omonima in CIDR db)
+	# torno la lista delle cidr, e se iptables è settato feeddo iptables
+
+	db = connetto_db()
+	db.execute("select CIDR from CIDR where CATEGORY=%s", (category,))
+	elenco_cidr = []
+
+	for cidr in netaddr.cidr_merge(list([row[0] for row in db.fetchall()])):
+			elenco_cidr.append(str(cidr))
+
+	if Genera_Iptables:
+		os.system("/sbin/iptables -N fuck-"+category+"-tmp")
+		for cidr in elenco_cidr:
+			os.system("/sbin/iptables -A fuck-"+category+"-tmp -s "+cidr+" --protocol tcp --dport 25 -j DROP")
+		for flag in ['F',  'X']: #chain flush and remove
+			os.system("/sbin/iptables -"+flag+" fuck-"+category)
+		os.system("/sbin/iptables -E fuck-"+category+"-tmp fuck-"+category)
+
+	return elenco_cidr
+
 # funzioni richiamabili da riga di comando
 def Geoloc_update():
 	# Aggiorno GEOIP->IP->FUCKLOG->MYSQL
@@ -58,6 +79,9 @@ def Geoloc_update():
 			time.sleep(3600)
 
 def Lasso_update():
+	# Invocato, scarico e aggiorno l'elenco di Spamhaus Lasso.
+	# Onoro --iptables
+
 	while True:
 		try:
 			lassofile = urllib.urlopen("http://www.spamhaus.org/drop/drop.lasso")
@@ -75,7 +99,7 @@ def Lasso_update():
 			db.execute("insert into CIDR(CIDR, SIZE, NOTE, CATEGORY) values (%s,%s,%s,'lasso')", (cidr.strip(), size, note.strip()))
 
 		if Genera_Iptables:
-			list_cidr('lasso')
+			get_cidr('lasso')
 
 		if KeepAlive is False:
 			break
@@ -156,28 +180,6 @@ def scanner(IpBase, direction="before", debug=False):
 			ip = ip + 1
 
 	return ip_distante, ipdns
-
-def list_cidr(category):
-	# ricevo la discriminante category (equivale alla colonna omonima in CIDR db)
-	# torno l'elenco, e se iptables è settato feeddo iptables
-
-	db = connetto_db()
-	db.execute("select CIDR from CIDR where CATEGORY=%s", (category,))
-	elenco_cidr = []
-
-	for cidr in netaddr.cidr_merge(list([row[0] for row in db.fetchall()])):
-		if Genera_Iptables:
-			elenco_cidr.append(str(cidr))
-		else:
-			print cidr
-
-	if Genera_Iptables:
-		os.system("/sbin/iptables -N fuck-"+category+"-tmp")
-		for cidr in elenco_cidr:
-			os.system("/sbin/iptables -A fuck-"+category+"-tmp -s "+cidr+" --protocol tcp --dport 25 -j DROP")
-		for flag in ['F',  'X']: #chain flush and remove
-			os.system("/sbin/iptables -"+flag+" fuck-"+category)
-		os.system("/sbin/iptables -E fuck-"+category+"-tmp fuck-"+category)
 
 def suspect_dns_name(dns):
 	badwords = ['ip','pool','dhcp','dialup', 'dyn', 'dsl','ppp','dial','cable','retail','3g','static','hsd','umts','wimax','cliente','vfbb']
