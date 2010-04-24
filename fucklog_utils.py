@@ -13,7 +13,7 @@ geoip_db_file = "/opt/GeoIP/GeoLiteCity.dat"
 geoip_db = False
 # Dati costanti per flag
 azione = None
-genera_iptables = None
+Genera_Iptables = None
 KeepAlive = False
 
 # funzioni ausiliarie
@@ -57,26 +57,30 @@ def Geoloc_update():
 		else:
 			time.sleep(3600)
 
-def update_lasso():
+def Lasso_update():
+	while True:
+		try:
+			lassofile = urllib.urlopen("http://www.spamhaus.org/drop/drop.lasso")
+		except:
+			logga("Lasso update: fallita lettura URL","exit")
 
-	try:
-		lassofile = urllib.urlopen("http://www.spamhaus.org/drop/drop.lasso")
-	except:
-		print "Lasso update: fallita lettura URL"
-		return False
+		db = connetto_db()
+		db.execute("delete from CIDR where CATEGORY='lasso'")
 
-	db = connetto_db()
-	db.execute("delete from CIDR where CATEGORY='lasso'")
+		for line in lassofile:
+			if line.startswith(';'):
+				continue
+			cidr, note = line[:-1].split(';')
+			size = len(netaddr.IPNetwork(cidr))
+			db.execute("insert into CIDR(CIDR, SIZE, NOTE, CATEGORY) values (%s,%s,%s,'lasso')", (cidr.strip(), size, note.strip()))
 
-	for line in lassofile:
-		if line.startswith(';'):
-			continue
-		cidr, note = line[:-1].split(';')
-		size = len(IPNetwork(cidr))
-		db.execute("insert into CIDR(CIDR, SIZE, NOTE, CATEGORY) values (%s,%s,%s,'lasso')", (cidr.strip(), size, note.strip()))
+		if Genera_Iptables:
+			list_cidr('lasso')
 
-	if genera_iptables:
-		list_cidr('lasso', genera_iptables=True)
+		if KeepAlive is False:
+			break
+		else:
+			time.sleep(129600) # aggiorna dopo 36 ore
 
 def is_already_mapped(IP):
 	# prendo un IP, lo confronto con il DB, ritorno vero se conosciuto
@@ -153,23 +157,21 @@ def scanner(IpBase, direction="before", debug=False):
 
 	return ip_distante, ipdns
 
-def list_cidr(category, genera_iptables=False):
+def list_cidr(category):
 	# ricevo la discriminante category (equivale alla colonna omonima in CIDR db)
 	# torno l'elenco, e se iptables è settato feeddo iptables
-
-	import netaddr
 
 	db = connetto_db()
 	db.execute("select CIDR from CIDR where CATEGORY=%s", (category,))
 	elenco_cidr = []
 
 	for cidr in netaddr.cidr_merge(list([row[0] for row in db.fetchall()])):
-		if genera_iptables:
+		if Genera_Iptables:
 			elenco_cidr.append(str(cidr))
 		else:
 			print cidr
 
-	if genera_iptables:
+	if Genera_Iptables:
 		os.system("/sbin/iptables -N fuck-"+category+"-tmp")
 		for cidr in elenco_cidr:
 			os.system("/sbin/iptables -A fuck-"+category+"-tmp -s "+cidr+" --protocol tcp --dport 25 -j DROP")
@@ -232,20 +234,20 @@ Opzioni:
 	-d --cidrdsl       *Genera elenco DSL da bloccare (sul lavoro di --clusterdsl)
 	-e --cidrptr       *Genera elenco PTR da bloccare (sul lavoro di clusterptr)
 	-f --scanner	   *Trova IP vicini (discrimina per reverse lookup)
-	-g --geoloc-update Aggiorna la geolocalizzazione in MySQL
+	-g --geoloc-update Aggiorna la geolocalizzazione in MySQL (capisce -k)
 	-h --help          *Help
 	-i --clusterdsl    *Scova IP residenziali
 	-k --keepalive     (flag) Imposta la ripetizione perpetua della funzione
-	-l --update-lasso  *Aggiorna elenco di Lasso (Spamhaus)
+	-l --lasso-update  Aggiorna la lista Lasso di Spamhaus (con -p committa le modifiche, capisce -k)
 	-n --clusterptr    *Scova IP senza ptr
-	-p --iptables      *Genera regole per iptables (in unione a opzione -d e -l lasso)
+	-p --iptables      (flag) Genera regole per iptables (capisce -d, funziona con -l e -d)
 	-t --totali        *Totale IP per classi A
 """
 		sys.exit(-1)
 
 if __name__ == "__main__":
 	try:
-		opts, args = getopt.getopt(sys.argv[1:], "defghiklnpt", ["cidrdsl","cidrptr","scanner","geoloc-update","help","clusterdsl","keepalive","update-lasso","clusterptr","iptables","totali"])
+		opts, args = getopt.getopt(sys.argv[1:], "defghiklnpt", ["cidrdsl","cidrptr","scanner","geoloc-update","help","clusterdsl","keepalive","lasso-update","clusterptr","iptables","totali"])
 	except getopt.GetoptError:
 		logga('Main: opzioni non valide: '+sys.argv[1:],'exit')
 
@@ -256,6 +258,10 @@ if __name__ == "__main__":
 			logga('','help')
 		elif opt in ("-k", "--keepalive"):
 			KeepAlive = True
+		elif opt in ('-l', '--lasso-update'):
+			azione = 'lasso-update'
+		elif opt in ('-p', '--iptables'):
+			Genera_Iptables = 1
 		# ordered
 		elif opt in ('-t', '--totali'):
 			azione = "totali"
@@ -265,20 +271,18 @@ if __name__ == "__main__":
 			azione = "cidrdsl"
 		elif opt in ('-e', '--cidrptr'):
 			azione = "cidrptr"
-		elif opt in ('-p', '--iptables'):
-			genera_iptables = 1
 		elif opt in ('-n', '--clusterptr'):
 			azione = "clusterptr"
 		elif opt in ('-f', '--scanner'):
 			azione = 'scanner'
-		elif opt in ('-l', '--update-lasso'):
-			azione = 'update_lasso'
 
 	if len(opts) == 0:
 		logga('', 'help')
 
-	if azione == "geoloc-update":
+	if azione   == "geoloc-update":
 		Geoloc_update()
+	elif azione == "lasso-update":
+		Lasso_update()
 	elif azione == "totali":
 		totali()
 	elif azione == "clusterdsl":
@@ -291,5 +295,3 @@ if __name__ == "__main__":
 		cidrptr()
 	elif azione == "scanner":
 		scanner()
-	elif azione == "update_lasso":
-		update_lasso()
