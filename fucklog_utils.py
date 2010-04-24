@@ -1,12 +1,18 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import getopt, sys, socket, dns.resolver, dns.reversename, os
-from netaddr import *
+try:
+	import dns.resolver, dns.reversename, getopt, netaddr, os, sys, socket
+except:
+	print "Mancano dei moduli. Probabilmente\nhttp://code.google.com/p/netaddr\npython-dnspython"
 
-#variabili
+# Dati costanti per dati
 mysql_host, mysql_user, mysql_passwd, mysql_db = "localhost", "fucklog", "pattinaggio", "fucklog"
 geoipdb = "/opt/GeoIP/GeoLiteCity.dat"
+# Dati costanti per funzioni
+azione = None
+genera_iptables = None
+KeepAlive = None
 
 def connetto_db():
 	import MySQLdb
@@ -205,37 +211,33 @@ def logga(testo,peso=None):
 	if peso == "help":
 		print """
 Opzioni:
-	-c --continue     Keep forever
-	-d --cidrdsl      Genera elenco DSL da bloccare (sul lavoro di --clusterdsl)
-	-e --cidrptr      Genera elenco PTR da bloccare (sul lavoro di clusterptr)
-	-f --scanner	  Trova IP vicini (discrimina per reverse lookup)
-	-g --geoip        GeoIP localization
-	-h --help         Help
-	-i --clusterdsl   Scova IP residenziali
-	-l --update-lasso Aggiorna elenco di Lasso (Spamhaus)
-	-n --clusterptr   Scova IP senza ptr
-	-p --iptables     Genera regole per iptables (in unione a opzione -d e -l lasso)
-	-t --totali       Totale IP per classi A
+	-d --cidrdsl      *Genera elenco DSL da bloccare (sul lavoro di --clusterdsl)
+	-e --cidrptr      *Genera elenco PTR da bloccare (sul lavoro di clusterptr)
+	-f --scanner	  *Trova IP vicini (discrimina per reverse lookup)
+	-g --geoip        *GeoIP localization
+	-h --help         *Help
+	-i --clusterdsl   *Scova IP residenziali
+	-k --keepalive    (flag) Imposta la ripetizione perpetua della funzione
+	-l --update-lasso *Aggiorna elenco di Lasso (Spamhaus)
+	-n --clusterptr   *Scova IP senza ptr
+	-p --iptables     *Genera regole per iptables (in unione a opzione -d e -l lasso)
+	-t --totali       *Totale IP per classi A
 """
 		sys.exit(-1)
 
 if __name__ == "__main__":
-	azione = None
-	genera_iptables = None
-	continua = None
-
 	try:
-		opts, args = getopt.getopt(sys.argv[1:], "cdefghilnpt", ["continue","cidrdsl","cidrptr","scanner","geoip","help","clusterdsl","update-lasso","clusterptr","iptables","totali"])
+		opts, args = getopt.getopt(sys.argv[1:], "defghiklnpt", ["cidrdsl","cidrptr","scanner","geoip","help","clusterdsl","keepalive","update-lasso","clusterptr","iptables","totali"])
 	except getopt.GetoptError:
-		logga('Main: opzioni invalide: '+sys.argv[1:],'exit')
+		logga('Main: opzioni non valide: '+sys.argv[1:],'exit')
 
 	for opt, a in opts:
+		if opt in ("-k", "--keepalive"):
+			azione = "keepalive"
 		if opt in ("-h", "--help"):
 			logga('','help')
 		elif opt in ('-g', "--geoip"):
 			azione = "geoip"
-		elif opt == '-c':
-			continua == 1
 		elif opt in ('-t', '--totali'):
 			azione = "totali"
 		elif opt in ('-i', '--clusterdsl'):
@@ -256,6 +258,8 @@ if __name__ == "__main__":
 	if len(opts) == 0:
 		logga('', 'help')
 
+	if azione == "keepalive":
+		KeepAlive = True
 	if azione == "geoip":
 		geoip()
 	if azione == "totali":
