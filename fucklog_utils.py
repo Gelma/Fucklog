@@ -214,7 +214,9 @@ def check_db_ip():
 		IP_base = netaddr.IPAddress(row[0])
 		check_ip_brothers(IP_base)
 
-def totali():
+def Totali():
+	# Invocato torno il numero totale di IP suddivisi per classi A
+
 	db = connetto_db()
 	for A in xrange(255):
 		A = str(A)
@@ -243,7 +245,7 @@ Opzioni:
 	-k --keepalive       (flag) Imposta la ripetizione perpetua della funzione
 	-l --lasso-update    Aggiorna la lista Lasso di Spamhaus (onora -i -k)
 	-n --clusterptr      *Scova IP senza ptr
-	-t --totali          *Totale IP per classi A
+	-t --totali          Totale degli IP suddivisi per classi A
 """
 		sys.exit(-1)
 
@@ -266,9 +268,9 @@ if __name__ == "__main__":
 			KeepAlive = True
 		elif opt in ('-l', '--lasso-update'):
 			azione = 'lasso-update'
-		# ordered
 		elif opt in ('-t', '--totali'):
 			azione = "totali"
+		# ordered
 		elif opt in ('-d', '--cidrdsl'):
 			azione = "cidrdsl"
 		elif opt in ('-e', '--cidrptr'):
@@ -285,8 +287,6 @@ if __name__ == "__main__":
 		Geoloc_update()
 	elif azione == "lasso-update":
 		Lasso_update()
-	elif azione == "totali":
-		totali()
 	elif azione == "clusterdsl":
 		clusterdsl()
 	elif azione == "cidrdsl":
@@ -297,3 +297,5 @@ if __name__ == "__main__":
 		cidrptr()
 	elif azione == "scanner":
 		scanner()
+	elif azione == "totali":
+		Totali()
