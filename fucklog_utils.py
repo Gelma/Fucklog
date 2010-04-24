@@ -2,45 +2,62 @@
 # -*- coding: utf-8 -*-
 
 try:
-	import dns.resolver, dns.reversename, getopt, netaddr, os, sys, socket
+	import dns.resolver, dns.reversename, getopt, MySQLdb, netaddr, os, pygeoip, sys, socket, time, urllib
 except:
 	print "Mancano dei moduli. Probabilmente\nhttp://code.google.com/p/netaddr\npython-dnspython"
 
-# Dati costanti per dati
+# Dati costanti per MysqlDB
 mysql_host, mysql_user, mysql_passwd, mysql_db = "localhost", "fucklog", "pattinaggio", "fucklog"
-geoipdb = "/opt/GeoIP/GeoLiteCity.dat"
-# Dati costanti per funzioni
+# Dati costanti per GeoIP
+geoip_db_file = "/opt/GeoIP/GeoLiteCity.dat"
+geoip_db = False
+# Dati costanti per flag
 azione = None
 genera_iptables = None
-KeepAlive = None
+KeepAlive = False
 
+# funzioni ausiliarie
 def connetto_db():
-	import MySQLdb
-
 	try:
 		return MySQLdb.connect(host=mysql_host, user=mysql_user, passwd=mysql_passwd, db=mysql_db).cursor()
 	except:
-		logga('MySQL: DB connect fail','exit')
+		logga('MySQL: Connessione al DB fallita','exit')
 
-def geoip():
-	import pygeoip
-	db = connetto_db()
-	gip = pygeoip.GeoIP(geoipdb)
+def geoip_from_ip(IP):
+	# ricevo un IP, torno la nazione o 'N/A' se non lo so
+	global geoip_db
 
-	db.execute("select IP, INET_NTOA(IP) from IP where GEOIP is null order by IP")
-	for row in db.fetchall():
-		try:
-			nazione = gip.country_code_by_addr(row[1])
-		except:
-			nazione = 'N/A'
-		try:
-			db.execute("update IP set GEOIP=%s where IP=%s", (nazione,row[0]))
-		except:
-			print "fallito",row
-		print row
+	if geoip_db is False:
+		geoip_db = pygeoip.GeoIP(geoip_db_file)
+
+	try:
+		return geoip_db.country_name_by_addr(IP)
+	except:
+		return 'N/A'
+
+# funzioni richiamabili da riga di comando
+def Geoloc_update():
+	# Aggiorno GEOIP->IP->FUCKLOG->MYSQL
+	# Se KeepAlive ripeto ogni ora
+
+	while True:
+		db = connetto_db()
+		db.execute("select IP from IP where GEOIP is null")
+		for row in db.fetchall():
+			ip      = netaddr.IPAddress(row[0])
+			nazione = geoip_from_ip(str(ip))
+			try:
+				db.execute("update IP set GEOIP=%s where IP=%s", (nazione, ip))
+			except:
+				print "fallito",str(ip),nazione
+			print ip, nazione
+		db.close()
+		if KeepAlive is False:
+			break
+		else:
+			time.sleep(3600)
 
 def update_lasso():
-	import urllib
 
 	try:
 		lassofile = urllib.urlopen("http://www.spamhaus.org/drop/drop.lasso")
@@ -205,39 +222,41 @@ def totali():
 				print row[0], A
 
 def logga(testo,peso=None):
-	print testo
+	if testo != '':
+		print testo
 	if peso == "exit":
 		sys.exit(-1)
 	if peso == "help":
 		print """
 Opzioni:
-	-d --cidrdsl      *Genera elenco DSL da bloccare (sul lavoro di --clusterdsl)
-	-e --cidrptr      *Genera elenco PTR da bloccare (sul lavoro di clusterptr)
-	-f --scanner	  *Trova IP vicini (discrimina per reverse lookup)
-	-g --geoip        *GeoIP localization
-	-h --help         *Help
-	-i --clusterdsl   *Scova IP residenziali
-	-k --keepalive    (flag) Imposta la ripetizione perpetua della funzione
-	-l --update-lasso *Aggiorna elenco di Lasso (Spamhaus)
-	-n --clusterptr   *Scova IP senza ptr
-	-p --iptables     *Genera regole per iptables (in unione a opzione -d e -l lasso)
-	-t --totali       *Totale IP per classi A
+	-d --cidrdsl       *Genera elenco DSL da bloccare (sul lavoro di --clusterdsl)
+	-e --cidrptr       *Genera elenco PTR da bloccare (sul lavoro di clusterptr)
+	-f --scanner	   *Trova IP vicini (discrimina per reverse lookup)
+	-g --geoloc-update Aggiorna la geolocalizzazione in MySQL
+	-h --help          *Help
+	-i --clusterdsl    *Scova IP residenziali
+	-k --keepalive     (flag) Imposta la ripetizione perpetua della funzione
+	-l --update-lasso  *Aggiorna elenco di Lasso (Spamhaus)
+	-n --clusterptr    *Scova IP senza ptr
+	-p --iptables      *Genera regole per iptables (in unione a opzione -d e -l lasso)
+	-t --totali        *Totale IP per classi A
 """
 		sys.exit(-1)
 
 if __name__ == "__main__":
 	try:
-		opts, args = getopt.getopt(sys.argv[1:], "defghiklnpt", ["cidrdsl","cidrptr","scanner","geoip","help","clusterdsl","keepalive","update-lasso","clusterptr","iptables","totali"])
+		opts, args = getopt.getopt(sys.argv[1:], "defghiklnpt", ["cidrdsl","cidrptr","scanner","geoloc-update","help","clusterdsl","keepalive","update-lasso","clusterptr","iptables","totali"])
 	except getopt.GetoptError:
 		logga('Main: opzioni non valide: '+sys.argv[1:],'exit')
 
 	for opt, a in opts:
-		if opt in ("-k", "--keepalive"):
-			azione = "keepalive"
-		if opt in ("-h", "--help"):
+		if opt in ('-g', "--geoloc-update"):
+			azione = "geoloc-update"
+		elif opt in ("-h", "--help"):
 			logga('','help')
-		elif opt in ('-g', "--geoip"):
-			azione = "geoip"
+		elif opt in ("-k", "--keepalive"):
+			KeepAlive = True
+		# ordered
 		elif opt in ('-t', '--totali'):
 			azione = "totali"
 		elif opt in ('-i', '--clusterdsl'):
@@ -258,21 +277,19 @@ if __name__ == "__main__":
 	if len(opts) == 0:
 		logga('', 'help')
 
-	if azione == "keepalive":
-		KeepAlive = True
-	if azione == "geoip":
-		geoip()
-	if azione == "totali":
+	if azione == "geoloc-update":
+		Geoloc_update()
+	elif azione == "totali":
 		totali()
-	if azione == "clusterdsl":
+	elif azione == "clusterdsl":
 		clusterdsl()
-	if azione == "cidrdsl":
+	elif azione == "cidrdsl":
 		cidrdsl()
-	if azione == "clusterptr":
+	elif azione == "clusterptr":
 		clusterptr()
-	if azione == "cidrptr":
+	elif azione == "cidrptr":
 		cidrptr()
-	if azione == "scanner":
+	elif azione == "scanner":
 		scanner()
-	if azione == "update_lasso":
+	elif azione == "update_lasso":
 		update_lasso()
