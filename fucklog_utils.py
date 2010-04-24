@@ -231,42 +231,42 @@ def logga(testo,peso=None):
 	if peso == "help":
 		print """
 Opzioni:
-	-d --cidrdsl       *Genera elenco DSL da bloccare (sul lavoro di --clusterdsl)
-	-e --cidrptr       *Genera elenco PTR da bloccare (sul lavoro di clusterptr)
-	-f --scanner	   *Trova IP vicini (discrimina per reverse lookup)
-	-g --geoloc-update Aggiorna la geolocalizzazione in MySQL (capisce -k)
-	-h --help          *Help
-	-i --clusterdsl    *Scova IP residenziali
-	-k --keepalive     (flag) Imposta la ripetizione perpetua della funzione
-	-l --lasso-update  Aggiorna la lista Lasso di Spamhaus (con -p committa le modifiche, capisce -k)
-	-n --clusterptr    *Scova IP senza ptr
-	-p --iptables      (flag) Genera regole per iptables (capisce -d, funziona con -l e -d)
-	-t --totali        *Totale IP per classi A
+	-c --clusterdsl      *Scova IP residenziali
+	-d --cidrdsl         *Genera elenco DSL da bloccare (sul lavoro di --clusterdsl)
+	-e --cidrptr         *Genera elenco PTR da bloccare (sul lavoro di clusterptr)
+	-f --scanner	     *Trova IP vicini (discrimina per reverse lookup)
+	-g --geoloc-update   Aggiorna la geolocalizzazione in MySQL (capisce -k)
+	-h --help            *Help
+	-i --iptables-update (flag) Genera regole per iptables (onora -d -l)
+	-k --keepalive       (flag) Imposta la ripetizione perpetua della funzione
+	-l --lasso-update    Aggiorna la lista Lasso di Spamhaus (onora -i -k)
+	-n --clusterptr      *Scova IP senza ptr
+	-t --totali          *Totale IP per classi A
 """
 		sys.exit(-1)
 
 if __name__ == "__main__":
 	try:
-		opts, args = getopt.getopt(sys.argv[1:], "defghiklnpt", ["cidrdsl","cidrptr","scanner","geoloc-update","help","clusterdsl","keepalive","lasso-update","clusterptr","iptables","totali"])
+		opts, args = getopt.getopt(sys.argv[1:], "cdefghiklnpt", ["clusterdsl","cidrdsl","cidrptr","scanner","geoloc-update","help","iptables-update","keepalive","lasso-update","clusterptr","iptables","totali"])
 	except getopt.GetoptError:
 		logga('Main: opzioni non valide: '+sys.argv[1:],'exit')
 
 	for opt, a in opts:
-		if opt in ('-g', "--geoloc-update"):
+		if   opt in ('-c', '--clusterdsl'):
+			azione = "clusterdsl"
+		elif opt in ('-g', "--geoloc-update"):
 			azione = "geoloc-update"
 		elif opt in ("-h", "--help"):
 			logga('','help')
+		elif opt in ('-i', '--iptables-update'):
+			Genera_Iptables = 1
 		elif opt in ("-k", "--keepalive"):
 			KeepAlive = True
 		elif opt in ('-l', '--lasso-update'):
 			azione = 'lasso-update'
-		elif opt in ('-p', '--iptables'):
-			Genera_Iptables = 1
 		# ordered
 		elif opt in ('-t', '--totali'):
 			azione = "totali"
-		elif opt in ('-i', '--clusterdsl'):
-			azione = "clusterdsl"
 		elif opt in ('-d', '--cidrdsl'):
 			azione = "cidrdsl"
 		elif opt in ('-e', '--cidrptr'):
