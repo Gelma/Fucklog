@@ -58,9 +58,26 @@ def get_cidr(category):
 
 def reverse_ip(IP):
 	# ricevo un IP 1.2.3.4 e lo torno girato 4.3.2.1
+
 	n = ip.split('.')
 	n.reverse()
 	return '.'.join(n)
+
+def is_pbl(IP):
+	# ricevo un IP. Torno False se non in pbl.spamhaus.org
+	# torno il link diversamente
+
+	from dns.resolver import query
+	from dns.exception import DNSException
+
+	qstr = '%s.sbl.spamhaus.org.' % revip(ip)
+	try:
+		qa = query(qstr, 'TXT')
+	except DNSException:
+		return False
+	for rr in qa:
+		for s in rr.strings:
+			return s
 
 # funzioni richiamabili da riga di comando
 def Geoloc_update():
