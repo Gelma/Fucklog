@@ -56,6 +56,12 @@ def get_cidr(category):
 
 	return elenco_cidr
 
+def reverse_ip(IP):
+	# ricevo un IP 1.2.3.4 e lo torno girato 4.3.2.1
+	n = ip.split('.')
+	n.reverse()
+	return '.'.join(n)
+
 # funzioni richiamabili da riga di comando
 def Geoloc_update():
 	# Aggiorno GEOIP->IP->FUCKLOG->MYSQL
@@ -78,6 +84,14 @@ def Geoloc_update():
 		else:
 			time.sleep(3600)
 
+def Size_cidr(cidr):
+	# Dato un Network CIDR torno il numero di IP che lo compongono
+
+	try:
+		return len(netaddr.IPNetwork(cidr))
+	except:
+		return None
+
 def Lasso_update():
 	# Invocato, scarico e aggiorno l'elenco di Spamhaus Lasso.
 	# Onoro --iptables
@@ -95,8 +109,7 @@ def Lasso_update():
 			if line.startswith(';'):
 				continue
 			cidr, note = line[:-1].split(';')
-			size = len(netaddr.IPNetwork(cidr))
-			db.execute("insert into CIDR(CIDR, SIZE, NOTE, CATEGORY) values (%s,%s,%s,'lasso')", (cidr.strip(), size, note.strip()))
+			db.execute("insert into CIDR(CIDR, SIZE, NOTE, CATEGORY) values (%s,%s,%s,'lasso')", (cidr.strip(), Size_cidr(cidr), note.strip()))
 
 		if Genera_Iptables:
 			get_cidr('lasso')
@@ -105,6 +118,19 @@ def Lasso_update():
 			break
 		else:
 			time.sleep(129600) # aggiorna dopo 36 ore
+
+def Totali():
+	# Invocato torno il numero totale di IP suddivisi per classi A
+
+	db = connetto_db()
+	for A in xrange(255):
+		A = str(A)
+		ip_begin = A + '.0.0.0'
+		ip_end   = A + '.255.255.255'
+		db.execute("select count(*) from IP where IP>=INET_ATON(%s) and IP<=INET_ATON(%s)", (ip_begin, ip_end))
+		for row in db.fetchall():
+			if row[0] != 0:
+				print row[0], A
 
 def is_already_mapped(IP):
 	# prendo un IP, lo confronto con il DB, ritorno vero se conosciuto
@@ -214,19 +240,6 @@ def check_db_ip():
 		IP_base = netaddr.IPAddress(row[0])
 		check_ip_brothers(IP_base)
 
-def Totali():
-	# Invocato torno il numero totale di IP suddivisi per classi A
-
-	db = connetto_db()
-	for A in xrange(255):
-		A = str(A)
-		ip_begin = A + '.0.0.0'
-		ip_end   = A + '.255.255.255'
-		db.execute("select count(*) from IP where IP>=INET_ATON(%s) and IP<=INET_ATON(%s)", (ip_begin, ip_end))
-		for row in db.fetchall():
-			if row[0] != 0:
-				print row[0], A
-
 def logga(testo,peso=None):
 	if testo != '':
 		print testo
@@ -245,13 +258,14 @@ Opzioni:
 	-k --keepalive       (flag) Imposta la ripetizione perpetua della funzione
 	-l --lasso-update    Aggiorna la lista Lasso di Spamhaus (onora -i -k)
 	-n --clusterptr      *Scova IP senza ptr
+	-s --size_cidr       Torna il numero di IP che compongono una CIDR
 	-t --totali          Totale degli IP suddivisi per classi A
 """
 		sys.exit(-1)
 
 if __name__ == "__main__":
 	try:
-		opts, args = getopt.getopt(sys.argv[1:], "cdefghiklnpt", ["clusterdsl","cidrdsl","cidrptr","scanner","geoloc-update","help","iptables-update","keepalive","lasso-update","clusterptr","iptables","totali"])
+		opts, args = getopt.getopt(sys.argv[1:], "cdefghiklnpst", ["clusterdsl","cidrdsl","cidrptr","scanner","geoloc-update","help","iptables-update","keepalive","lasso-update","clusterptr","iptables","size-cidr","totali"])
 	except getopt.GetoptError:
 		logga('Main: opzioni non valide: '+sys.argv[1:],'exit')
 
@@ -268,6 +282,8 @@ if __name__ == "__main__":
 			KeepAlive = True
 		elif opt in ('-l', '--lasso-update'):
 			azione = 'lasso-update'
+		elif opt in ('-s', '--size-cidr'):
+			azione = 'size_cidr'
 		elif opt in ('-t', '--totali'):
 			azione = "totali"
 		# ordered
@@ -287,6 +303,10 @@ if __name__ == "__main__":
 		Geoloc_update()
 	elif azione == "lasso-update":
 		Lasso_update()
+	elif azione == "size-cidr":
+		Size_cidr()
+	elif azione == "totali":
+		Totali()
 	elif azione == "clusterdsl":
 		clusterdsl()
 	elif azione == "cidrdsl":
@@ -297,5 +317,3 @@ if __name__ == "__main__":
 		cidrptr()
 	elif azione == "scanner":
 		scanner()
-	elif azione == "totali":
-		Totali()
