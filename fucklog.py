@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import datetime, os,  re,  shelve,  sys, thread, time, MySQLdb
+import datetime, os, re, shelve, sys, thread, time, MySQLdb
 
 if True: # Global vars
 	default_local_db = "/root/fucklog.db"

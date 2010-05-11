@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# http://code.google.com/p/netaddr/wiki/IPTutorial
-
 try:
 	import psyco, dns.resolver, dns.reversename, getopt, MySQLdb, netaddr, os, pygeoip, sys, socket, time, urllib, datetime, re, shelve, thread
 except:
