@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import datetime, os, re, shelve, sys, thread, time, MySQLdb
+import datetime, os, re, shelve, sys, thread, time, MySQLdb, fucklog_utils
 
 if True: # Global vars
 	postfix_log_file = "/var/log/everything/current"
@@ -23,12 +23,6 @@ if True: # Global vars
 	# MRTG files
 	file_mrtg_stats = open("/tmp/.fucklog_mrtg", 'w')
 
-def connetto_db():
-	try:
-		return MySQLdb.connect(host=mysql_host, user=mysql_user, passwd=mysql_passwd, db=mysql_db).cursor()
-	except:
-		logga('MySQL: Connessione al DB fallita','exit')
-
 def logit(text):
 	lock_output_log_file.acquire()
 	now = datetime.datetime.now()
@@ -50,6 +44,7 @@ def update_stats():
 
 def rm_old_iptables_chains():
 	global all_ip_blocked
+
 	my_today = 'fucklog-'+str(datetime.date.today())
 	for chain_name in list_of_iptables_chains.keys():
 		if (chain_name < my_today):
@@ -91,7 +86,7 @@ def parse_log(Id):
 		print "Problema sul file di log", postfix_log_file
 		sys.exit(-1)
 
-	db = connetto_db()
+	db = fucklog_utils.connetto_db()
 
 	while True:
 		logit("Parse: begin read log file")
@@ -114,7 +109,7 @@ def parse_log(Id):
 						ipdb[IP] = None
 						# inserimento in MySQL
 						try:
-							db.execute("insert into IP (IP, DNS, FROOM, TOO, REASON, LINE) values (INET_ATON(%s), %s, %s, %s, %s, %s)", (IP, DNS, FROM, TO, REASON, log_line))
+							db.execute("insert into IP (IP, DNS, FROOM, TOO, REASON, LINE, GEOIP) values (INET_ATON(%s), %s, %s, %s, %s, %s, %s)", (IP, DNS, FROM, TO, REASON, log_line, fucklog_utils.geoip_from_ip(IP)))
 						except db.IntegrityError:
 							db.execute("update IP set DNS=%s, FROOM=%s, TOO=%s, REASON=%s, LINE=%s, counter=counter+1, DATE=CURRENT_TIMESTAMP where IP=INET_ATON(%s)", (DNS, FROM, TO, REASON, log_line, IP))
 						until_date = str(datetime.date.today()+ datetime.timedelta(days=blocked_for_days)) # We block 'ntill...
@@ -132,20 +127,20 @@ def parse_log(Id):
 if __name__ == "__main__":
 
 	ipdb = {}
+	all_ip_blocked = 0
 
 	# Resume list of iptables chains and delete the old ones
-	for line in os.popen('/sbin/iptables -L -n|grep -i fucklog'):
-		list_of_iptables_chains[line.split()[1]] = None
-		logit("Main: resume chain "+line.split()[1])
+	for line in os.popen("/sbin/iptables -L -n|grep  'Chain fucklog'"):
+		chain_name = line.split()[1]
+		print "Ripristino", chain_name
+		for line in os.popen("/sbin/iptables -n -L "+chain_name):
+			if line.startswith('DROP'):
+				ipdb[ line.split()[3] ] = None
+				print "Ripristino IP", line.split()[3]
+				all_ip_blocked += 1
+		list_of_iptables_chains[chain_name] = None
+		logit("Main: resume chain "+chain_name)
 	rm_old_iptables_chains()
-
-	# And resume number of total IP blocked
-	all_ip_blocked = 0
-	for chain_name in list_of_iptables_chains:
-		for total_output in os.popen('/sbin/iptables -L '+chain_name+' -n | /bin/grep DROP | /usr/bin/wc -l'):
-			all_ip_blocked += int(total_output)
-			# todo: update ipdb by IP to avoid double entry
-	logit("Main: resume number of total IP blocked "+str(all_ip_blocked))
 
 	thread.start_new_thread(parse_log,  (1, ))
 	thread.start_new_thread(mrproper,   (1, ))
@@ -158,4 +153,3 @@ if __name__ == "__main__":
 		if command == "s":
 			logit("Stats: "+str(today_ip_blocked)+"/"+str(all_ip_blocked)+'-'+str(len(list_of_iptables_chains)))
 			print "   Today IP blocked:", today_ip_blocked, "/",  all_ip_blocked,  ". Chains: ", len(list_of_iptables_chains)
-			print "   Total known IP",  len(ipdb)
