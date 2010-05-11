@@ -1,8 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+# http://code.google.com/p/netaddr/wiki/IPTutorial
+
 try:
-	import dns.resolver, dns.reversename, getopt, MySQLdb, netaddr, os, pygeoip, sys, socket, time, urllib
+	import psyco, dns.resolver, dns.reversename, getopt, MySQLdb, netaddr, os, pygeoip, sys, socket, time, urllib
 except:
 	print "Mancano dei moduli. Probabilmente\nhttp://code.google.com/p/netaddr\npython-dnspython"
 
@@ -15,6 +17,7 @@ geoip_db = False
 azione = None
 Genera_Iptables = None
 KeepAlive = False
+Cached_CIDRs = None
 
 # funzioni ausiliarie
 def connetto_db():
@@ -22,6 +25,23 @@ def connetto_db():
 		return MySQLdb.connect(host=mysql_host, user=mysql_user, passwd=mysql_passwd, db=mysql_db).cursor()
 	except:
 		logga('MySQL: Connessione al DB fallita','exit')
+
+def compatta_cbl():
+	f = open('/tmp/cbl','r')
+
+	elencone = list([l[:-1] for l in f])
+	cidr = []
+
+	print len(elencone)
+
+	while elencone:
+		print "botta"
+		for ip in elencone[:10000]:
+			cidr.append(ip)
+		cidr = netaddr.cidr_merge(cidr)
+		print cidr
+		elencone = elencone[10000:]
+
 
 def geoip_from_ip(IP):
 	# ricevo un IP, torno la nazione o 'N/A' se non lo so
@@ -37,10 +57,13 @@ def geoip_from_ip(IP):
 
 def get_cidr(category):
 	# ricevo la discriminante category (equivale alla colonna omonima in CIDR db)
-	# torno la lista delle cidr, e se iptables è settato feeddo iptables
+	# torno la lista delle cidr, e se Genera_Iptables è settato feeddo iptables
 
 	db = connetto_db()
-	db.execute("select CIDR from CIDR where CATEGORY=%s", (category,))
+	if category == 'lasso':
+		db.execute("select CIDR from CIDR where CATEGORY=%s order by SIZE desc", (category,))
+	else:
+		db.execute("select CIDR from CIDR where CATEGORY=%s and SIZE >= 256 order by SIZE desc", (category,))
 	elenco_cidr = []
 
 	for cidr in netaddr.cidr_merge(list([row[0] for row in db.fetchall()])):
@@ -59,7 +82,7 @@ def get_cidr(category):
 def reverse_ip(IP):
 	# ricevo un IP 1.2.3.4 e lo torno girato 4.3.2.1
 
-	n = ip.split('.')
+	n = IP.split('.')
 	n.reverse()
 	return '.'.join(n)
 
@@ -70,7 +93,7 @@ def is_pbl(IP):
 	from dns.resolver import query
 	from dns.exception import DNSException
 
-	qstr = '%s.sbl.spamhaus.org.' % revip(ip)
+	qstr = "%s.pbl.spamhaus.org." % reverse_ip(IP)
 	try:
 		qa = query(qstr, 'TXT')
 	except DNSException:
@@ -80,6 +103,55 @@ def is_pbl(IP):
 			return s
 
 # funzioni richiamabili da riga di comando
+def Cristini():
+	# leggo il file di Necro
+
+	db = connetto_db()
+	filettone = open('/tmp/necro','r')
+
+	for line in filettone:
+		if line.startswith('#'): continue
+		line = line[:-1].split()
+		PBL = line[0]
+		CIDR = netaddr.IPNetwork(line[1])
+
+		try:
+			db.execute("delete from CIDR where CIDR=%s", (str(CIDR),))
+			db.execute("insert into CIDR (CIDR, NAME, SIZE, CATEGORY) values (%s,%s,%s,'pbl')", (str(CIDR), PBL, CIDR.size))
+		except:
+			print "Errore:",CIDR
+
+def Size_cidr(cidr):
+	# Dato un Network CIDR torno il numero di IP che lo compongono
+
+	try:
+		return netaddr.IPNetwork(cidr).size
+	except:
+		return None
+
+def Cidr_db_size():
+	# Aggiorno SIZE->CIDR->FUCKLOG->MYSQL
+
+	while True:
+		db = connetto_db()
+		db.execute("select CIDR from CIDR where SIZE is null")
+		for row in db.fetchall():
+			size = Size_cidr(row[0])
+			try:
+				db.execute("update CIDR set SIZE=%s where CIDR=%s", (size, row[0]))
+			except:
+				print "fallito inserimento", row[0]
+
+		db.execute("select SUM(SIZE) from CIDR")
+		for row in db.fetchall():
+			print "Totale IP in CIDR:",row[0]
+
+		db.close()
+		if KeepAlive is False:
+			break
+		else:
+			time.sleep(3600)
+
 def Geoloc_update():
 	# Aggiorno GEOIP->IP->FUCKLOG->MYSQL
 	# Se KeepAlive ripeto ogni ora
@@ -91,7 +163,7 @@ def Geoloc_update():
 			ip      = netaddr.IPAddress(row[0])
 			nazione = geoip_from_ip(str(ip))
 			try:
-				db.execute("update IP set GEOIP=%s where IP=%s", (nazione, ip))
+				db.execute("update IP set GEOIP=%s where IP=%s", (nazione, int(ip)))
 			except:
 				print "fallito",str(ip),nazione
 			print ip, nazione
@@ -101,19 +173,126 @@ def Geoloc_update():
 		else:
 			time.sleep(3600)
 
-def Size_cidr(cidr):
-	# Dato un Network CIDR torno il numero di IP che lo compongono
+def Pbl_in_iptables():
+	# Scanno gli IP in Iptables e torno i link a PBL (i primi 10)
 
-	try:
-		return len(netaddr.IPNetwork(cidr))
-	except:
-		return None
+	counter = 0
+	for chain in os.popen('/sbin/iptables -L -n|grep -i fucklog|tac'):
+		for ip in os.popen('/sbin/iptables -L '+chain.split()[1]+' -n | /bin/grep DROP'):
+			ip = ip.split()[3]
+			if is_already_mapped(ip): continue
+			res = is_pbl(ip)
+			if res:
+				print res
+				counter = counter +1
+				if counter == 20:
+					return
+
+def Pbl_queue():
+	# leggo log e prendo URL di pbl.spamhaus e lo metto in PBLURL in MySQL
+	# per il check successivo via WEB del CIDR relativo
+	# e porto in IPTABLES le CIDR inserite via web
+	# inoltre controllo se anche gli altri IP in coda sono gia' risolti
+
+	import re
+	global Genera_Iptables
+	global Cached_CIDRs
+	Cached_CIDRs = None # Azzero la cache delle CIDRs
+
+	db = connetto_db()
+	regexp = re.compile('.*blocked using pbl.spamhaus.org;.*bl\?ip=(.*);')
+	grep_command = "/bin/grep --mmap pbl.spamhaus.org /var/log/everything/current"
+
+	while True:
+		# prendo i pbl dai log e li porto in tabella
+		for log_line in os.popen(grep_command):
+			m = regexp.match(log_line) # match for regexp
+			if m: # if it matches
+				ip = m.group(1)
+				if not is_already_mapped(ip):
+					try:
+						db.execute("insert into PBLURL (URL) values (%s)", (ip,))
+						print "Metto in coda web:",ip
+					except:
+						pass
+
+		# prendo le CIDR inserite via web e le vaglio
+		db.execute("select URL, CIDR from PBLURL where CIDR is NOT null")
+		for row in db.fetchall():
+			IP = row[0]
+			CIDR = row[1]
+
+			# controllo la validita' dei dati
+			try:
+				tmp = netaddr.IPAddress(IP)
+			except:
+				print "Non è un IP valido", IP
+				db.execute("delete from PBLURL where URL=%s",(IP,))
+				continue
+			try:
+				tmp = netaddr.IPNetwork(CIDR)
+			except:
+				print "Non è una CIDR valida", CIDR
+				db.execute("delete from PBLURL where URL=%s",(IP,))
+
+			# controllo che non sia gia' mappato (solo la roba nuova)
+			if is_already_mapped(IP):
+				print "Gia' mappato",IP
+				db.execute("delete from PBLURL where URL=%s",(IP,))
+				continue
+
+			# controllo che IP e CIDR siano compatibili
+			if netaddr.ip.all_matching_cidrs(netaddr.IPAddress(IP),[netaddr.IPNetwork(CIDR),]):
+				pass
+			else:
+				print "Non combaciano IP/CIDR",IP,CIDR
+				db.execute("delete from PBLURL where URL=%s",(IP,))
+				continue
+
+			# inserisco e cancello
+			try:
+				db.execute("insert into CIDR(CIDR, SIZE, CATEGORY) values (%s,%s,'pbl')", (CIDR.strip(), Size_cidr(CIDR)))
+			except:
+				print "Fallito inserimento in CIDR di", IP, CIDR
+				db.execute("delete from PBLURL where URL=%s",(IP,))
+
+			print "Inserito in CIDR: ",IP,CIDR
+			Cached_CIDRs = None
+
+		# ripeto il controllo su tutti gli IP rimasti
+		db.execute("select URL from PBLURL where CIDR is null")
+		for row in db.fetchall():
+			IP = row[0]
+			# controllo la validita' dei dati
+			try:
+				tmp = netaddr.IPAddress(IP)
+			except:
+				print "Non è un IP valido", IP
+				db.execute("delete from PBLURL where URL=%s",(IP,))
+				continue
+			# controllo che non sia gia' mappato (solo la roba nuova)
+			if is_already_mapped(IP):
+				print "Gia' mappato (tutti)",IP
+				db.execute("delete from PBLURL where URL=%s",(IP,))
+
+		if Genera_Iptables:
+			print "Genero Iptables"
+			get_cidr('pbl')
+
+		# controllo il ciclo
+		if KeepAlive is False:
+			break
+		else:
+			time.sleep(3600)
 
 def Lasso_update():
 	# Invocato, scarico e aggiorno l'elenco di Spamhaus Lasso.
 	# Onoro --iptables
 
+	import datetime
+
 	while True:
+		print "Update:",str(datetime.datetime.now())
 		try:
 			lassofile = urllib.urlopen("http://www.spamhaus.org/drop/drop.lasso")
 		except:
@@ -126,7 +305,7 @@ def Lasso_update():
 			if line.startswith(';'):
 				continue
 			cidr, note = line[:-1].split(';')
-			db.execute("insert into CIDR(CIDR, SIZE, NOTE, CATEGORY) values (%s,%s,%s,'lasso')", (cidr.strip(), Size_cidr(cidr), note.strip()))
+			db.execute("insert into CIDR(CIDR, SIZE, NAME, CATEGORY) values (%s,%s,%s,'lasso')", (cidr.strip(), Size_cidr(cidr), note.strip()))
 
 		if Genera_Iptables:
 			get_cidr('lasso')
@@ -149,21 +328,48 @@ def Totali():
 			if row[0] != 0:
 				print row[0], A
 
+def Clean_ip():
+	# Passo in rassegna gli IP in IP->Fucklog->MySQL e levo quelli gia' in CIDR
+
+	db = connetto_db()
+
+	db.execute("select IP from IP")
+	for row in db.fetchall():
+		IP = netaddr.IPAddress(row[0])
+		print IP
+		if is_already_mapped(str(IP)):
+			print "Elimino: ",IP
+			db.execute("delete from IP where IP=%s",(int(IP),))
+
 def is_already_mapped(IP):
 	# prendo un IP, lo confronto con il DB, ritorno vero se conosciuto
-	import netaddr
+	# utilizzo cached_cidr a livello globale, per permettere ad altri di azzerarlo
 
-	IP = str(IP)
-	db = connetto_db()
-	db.execute('select CIDR from CIDR')
-	cidrs = []
-	cidrs.extend([row[0] for row in db.fetchall()])
-	db.close()
+	global Cached_CIDRs
 
-	if netaddr.ip.all_matching_cidrs(IP,cidrs):
-		return True
-	else:
-		return False
+	if Cached_CIDRs is None:
+		# inizializzo il dizionario
+		Cached_CIDRs = {}
+		for n in xrange(256):
+			Cached_CIDRs[str(n)] = []
+		# succhio dal db
+		db = connetto_db()
+		db.execute('select CIDR from CIDR order by SIZE desc')
+		for row in db.fetchall():
+			CIDR = row[0]
+			classe = CIDR.split('.')[0]
+			Cached_CIDRs[classe].append(CIDR)
+		db.close()
+
+	ip = netaddr.IPAddress(str(IP).strip())
+	ClasseA = str(IP).split('.')[0]
+	ClassePrecedente = str(int(ClasseA) - 1)
+
+	for CIDR in Cached_CIDRs[ClasseA] + Cached_CIDRs[ClassePrecedente]:
+		if netaddr.ip.all_matching_cidrs(ip,[CIDR,]):
+			return True
+
+	return False
 
 def ip_to_dns(IP, without_numbers=True):
 	# prendo un IP e torno il reverse lookup
@@ -265,9 +471,7 @@ def logga(testo,peso=None):
 	if peso == "help":
 		print """
 Opzioni:
-	-c --clusterdsl      *Scova IP residenziali
-	-d --cidrdsl         *Genera elenco DSL da bloccare (sul lavoro di --clusterdsl)
-	-e --cidrptr         *Genera elenco PTR da bloccare (sul lavoro di clusterptr)
+	-c --cristini        Flusso di necro (da stdin)
 	-f --scanner	     *Trova IP vicini (discrimina per reverse lookup)
 	-g --geoloc-update   Aggiorna la geolocalizzazione in MySQL (capisce -k)
 	-h --help            *Help
@@ -275,20 +479,24 @@ Opzioni:
 	-k --keepalive       (flag) Imposta la ripetizione perpetua della funzione
 	-l --lasso-update    Aggiorna la lista Lasso di Spamhaus (onora -i -k)
 	-n --clusterptr      *Scova IP senza ptr
+	-p --pbl-in-iptables Torna le PBL attive presenti negli IP bloccati da iptables
 	-s --size_cidr       Torna il numero di IP che compongono una CIDR
 	-t --totali          Totale degli IP suddivisi per classi A
+	-x --cidr_db_size    Aggiorna le dimensioni delle CIDR in MySQLdb
+	-y --pbl-queue       Porta pbl URL da log nella tabella PBLURL, e committo le CIDR inserite via web
+	-z --clean-ip        Sego da IP->MySQL gli IP presenti nelle CIDR pbl
 """
 		sys.exit(-1)
 
 if __name__ == "__main__":
 	try:
-		opts, args = getopt.getopt(sys.argv[1:], "cdefghiklnpst", ["clusterdsl","cidrdsl","cidrptr","scanner","geoloc-update","help","iptables-update","keepalive","lasso-update","clusterptr","iptables","size-cidr","totali"])
+		opts, args = getopt.getopt(sys.argv[1:], "cfghiklnpstxyz", ["cristini","scanner","geoloc-update","help","iptables-update","keepalive","lasso-update","clusterptr","pbl-in-iptables","size-cidr","totali","cidr_db_size","pbl-queue","clean-ip"])
 	except getopt.GetoptError:
 		logga('Main: opzioni non valide: '+sys.argv[1:],'exit')
 
 	for opt, a in opts:
-		if   opt in ('-c', '--clusterdsl'):
-			azione = "clusterdsl"
+		if opt in ('-c', "--cristini"):
+			azione = "cristini"
 		elif opt in ('-g', "--geoloc-update"):
 			azione = "geoloc-update"
 		elif opt in ("-h", "--help"):
@@ -299,38 +507,46 @@ if __name__ == "__main__":
 			KeepAlive = True
 		elif opt in ('-l', '--lasso-update'):
 			azione = 'lasso-update'
+		elif opt in ('-p', '--pbl-in-iptables'):
+			azione = 'pbl-in-iptables'
 		elif opt in ('-s', '--size-cidr'):
 			azione = 'size_cidr'
 		elif opt in ('-t', '--totali'):
 			azione = "totali"
+		elif opt in ('-x', '--cidr_db_size'):
+			azione = "cidr_db_size"
+		elif opt in ('-y', '--pbl-queue'):
+			azione = "pbl-queue"
 		# ordered
-		elif opt in ('-d', '--cidrdsl'):
-			azione = "cidrdsl"
-		elif opt in ('-e', '--cidrptr'):
-			azione = "cidrptr"
 		elif opt in ('-n', '--clusterptr'):
 			azione = "clusterptr"
 		elif opt in ('-f', '--scanner'):
 			azione = 'scanner'
+		elif opt in ('-z', '--clean-ip'):
+			azione = 'clean-ip'
 
 	if len(opts) == 0:
 		logga('', 'help')
 
-	if azione   == "geoloc-update":
+	if azione == "cristini":
+		Cristini()
+	elif azione == "cidr_db_size":
+		Cidr_db_size()
+	elif azione == "geoloc-update":
 		Geoloc_update()
 	elif azione == "lasso-update":
 		Lasso_update()
+	elif azione == "pbl-in-iptables":
+		Pbl_in_iptables()
 	elif azione == "size-cidr":
 		Size_cidr()
 	elif azione == "totali":
 		Totali()
-	elif azione == "clusterdsl":
-		clusterdsl()
-	elif azione == "cidrdsl":
-		cidrdsl()
 	elif azione == "clusterptr":
 		clusterptr()
-	elif azione == "cidrptr":
-		cidrptr()
 	elif azione == "scanner":
 		scanner()
+	elif azione == "pbl-queue":
+		Pbl_queue()
+	elif azione == "clean-ip":
+		Clean_ip()
