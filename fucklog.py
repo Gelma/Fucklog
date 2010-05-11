@@ -3,14 +3,9 @@
 import datetime, os,  re,  shelve,  sys, thread, time, MySQLdb
 
 if True: # Global vars
-	# file costanti
-	# -> sviluppo
-	# default_local_db = "/tmp/fucklog.db"
-	# mysql_host, mysql_user, mysql_passwd, mysql_db = "localhost", "fucklog", "pattinaggio", "fucklog" 
-	# -> produzione
 	default_local_db = "/root/fucklog.db"
 	default_log_file = "/var/log/everything/current"
-	mysql_host, mysql_user, mysql_passwd, mysql_db = "localhost", "fucklog", "pattinaggio", "fucklog" 
+	mysql_host, mysql_user, mysql_passwd, mysql_db = "localhost", "fucklog", "pattinaggio", "fucklog"
 
 	# vars
 	interval = 10 # minutes
@@ -30,7 +25,6 @@ if True: # Global vars
 	log_file = open(output_log_file,'a') # Open logfile
 	# MRTG files
 	file_mrtg_stats = open("/tmp/.fucklog_mrtg", 'w')
-	uptime_path = "/usr/bin/uptime"
 
 def logit(text):
 	lock_output_log_file.acquire()
@@ -46,8 +40,6 @@ def update_stats():
 	file_mrtg_stats.truncate(0)
 	file_mrtg_stats.write(str(all_ip_blocked)+'\n'+str(today_ip_blocked)+'\n')
 	file_mrtg_stats.write(str(today_ip_blocked)+'/'+str(all_ip_blocked)+'\n')
-	#for line in os.popen(uptime_path):
-	#    file_mrtg_stats.write(line)
 	file_mrtg_stats.write('spam\n')
 	file_mrtg_stats.flush()
 
@@ -95,7 +87,7 @@ def parse_log(Id):
 		lock_ipdb.acquire()
 		logit("Parse: begin read")
 		for log_line in os.popen(grep_command):
-			for REASON,  regexp in enumerate(RegExps): # REASON=0 (rbl) 1 (helo)
+			for REASON, regexp in enumerate(RegExps): # REASON=0 (rbl) 1 (helo)
 				m = regexp.match(log_line) # match for regexp
 				if m: # if it matches
 					IP = m.group(2)
@@ -181,16 +173,6 @@ if __name__ == "__main__":
 	except:
 		print "Invalid DB file"
 		sys.exit(-1)
-
-	# reset Cached flag - non serve se ho chiuso in modo clean. aggiungere controllo.
-	#for key in ipdb.keys():
-	#    if ipdb[key][0]:
-	#        ipdb[key][0] = False
-	#        logit("Main: key reset "+key)
-	# close/re-open DB to reclaim memory
-	#ipdb.close()
-	#del ipdb
-	#ipdb = shelve.open(IPdbfile, protocol=2, writeback=True)
 
 	# Resume list of iptables chains
 	for line in os.popen('/sbin/iptables -L -n|grep -i fucklog'):

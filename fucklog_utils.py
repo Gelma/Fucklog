@@ -4,7 +4,7 @@
 # http://code.google.com/p/netaddr/wiki/IPTutorial
 
 try:
-	import psyco, dns.resolver, dns.reversename, getopt, MySQLdb, netaddr, os, pygeoip, sys, socket, time, urllib
+	import psyco, dns.resolver, dns.reversename, getopt, MySQLdb, netaddr, os, pygeoip, sys, socket, time, urllib, datetime, re, shelve, thread
 except:
 	print "Mancano dei moduli. Probabilmente\nhttp://code.google.com/p/netaddr\npython-dnspython"
 
