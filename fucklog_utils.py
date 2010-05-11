@@ -51,7 +51,7 @@ def geoip_from_ip(IP):
 	try:
 		return geoip_db.country_name_by_addr(IP)
 	except:
-		return 'N/A'
+		return None
 
 def get_cidr(category):
 	# ricevo la discriminante category (equivale alla colonna omonima in CIDR db)
