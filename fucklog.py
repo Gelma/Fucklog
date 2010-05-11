@@ -3,8 +3,7 @@
 import datetime, os, re, shelve, sys, thread, time, MySQLdb
 
 if True: # Global vars
-	default_local_db = "/root/fucklog.db"
-	default_log_file = "/var/log/everything/current"
+	postfix_log_file = "/var/log/everything/current"
 	mysql_host, mysql_user, mysql_passwd, mysql_db = "localhost", "fucklog", "pattinaggio", "fucklog"
 
 	# vars
@@ -43,7 +42,7 @@ def update_stats():
 	file_mrtg_stats.write('spam\n')
 	file_mrtg_stats.flush()
 
-def clean_iptables():
+def rm_old_iptables_chains():
 	global all_ip_blocked
 	my_today = 'fucklog-'+str(datetime.date.today())
 	for chain_name in iptables_chains.keys():
@@ -74,9 +73,7 @@ def mrproper(Id):
 		lock_ipdb.acquire()
 		logit("MrProper: acquire lock and start")
 		today_ip_blocked = 0 # azzero la statistica giornaliera
-		clean_iptables()
-		ipdb.sync()
-		os.system("/bin/cp -f "+default_local_db+" "+default_local_db+".bk")
+		rm_old_iptables_chains()
 		logit("MrProper: release lock and finish and copy")
 		lock_ipdb.release()
 
@@ -149,7 +146,7 @@ if __name__ == "__main__":
 	try:
 		file_to_read = sys.argv[1]
 	except:
-		file_to_read = default_log_file
+		file_to_read = postfix_log_file
 	if os.path.isfile(file_to_read):
 		grep_command = "/bin/grep --mmap -E '(fully-qualified|blocked)' " + file_to_read
 	else:
@@ -164,22 +161,14 @@ if __name__ == "__main__":
 	#                       '3 - From: (txt)',
 	#                       '4 - To: (txt)',
 	#                       '5 - Matched regexp (txt)']}
-	try:
-		IPdbfile = sys.argv[2]
-	except:
-		IPdbfile = default_local_db # where I keep data
-	try:
-		ipdb = shelve.open(IPdbfile, protocol=2, writeback=True)
-	except:
-		print "Invalid DB file"
-		sys.exit(-1)
+	ipdb = {}
 
 	# Resume list of iptables chains
 	for line in os.popen('/sbin/iptables -L -n|grep -i fucklog'):
 		iptables_chains[line.split()[1]] = None
 		logit("Main: resume chain "+line.split()[1])
-	# Clean old chains
-	clean_iptables()
+
+	rm_old_iptables_chains()
 	# And resume number of total IP blocked
 	all_ip_blocked = 0
 	for chain_name in iptables_chains:
@@ -196,8 +185,6 @@ if __name__ == "__main__":
 		command = raw_input("What's up:")
 		if command == "q":
 			lock_ipdb.acquire()
-			ipdb.sync()
-			ipdb.close()
 			logit("Main: clean shutdown")
 			sys.exit()
 		if command == "s":
