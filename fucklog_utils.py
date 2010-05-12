@@ -88,13 +88,10 @@ def is_pbl(IP):
 	# ricevo un IP. Torno False se non in pbl.spamhaus.org
 	# torno il link diversamente
 
-	from dns.resolver import query
-	from dns.exception import DNSException
-
 	qstr = "%s.pbl.spamhaus.org." % reverse_ip(IP)
 	try:
-		qa = query(qstr, 'TXT')
-	except DNSException:
+		qa = dns.resolver.query(qstr, 'TXT')
+	except dns.exception.DNSException:
 		return False
 	for rr in qa:
 		for s in rr.strings:
@@ -187,6 +184,8 @@ def Pbl_in_iptables():
 					return
 
 def Pbl_queue():
+	# Attenzione: l'inserimento nella coda ora avviene direttamente da fucklog a runtime.
+	# Viene mantenuta la fase di cleanup
 	# leggo log e prendo URL di pbl.spamhaus e lo metto in PBLURL in MySQL
 	# per il check successivo via WEB del CIDR relativo
 	# e porto in IPTABLES le CIDR inserite via web
@@ -339,11 +338,15 @@ def Clean_ip():
 			print "Elimino: ",IP
 			db.execute("delete from IP where IP=%s",(int(IP),))
 
-def is_already_mapped(IP):
+def is_already_mapped(IP,reset_cache=False,torna_la_cidr=False):
 	# prendo un IP, lo confronto con il DB, ritorno vero se conosciuto
-	# utilizzo cached_cidr a livello globale, per permettere ad altri di azzerarlo
+	# utilizzo cached_cidr a livello globale
+	# reset_cache = forza il flush della cache
+	# torna_la_cidr = ritorna la classe invece del semplice True
 
 	global Cached_CIDRs
+
+	if reset_cache: Cached_CIDRs = None
 
 	if Cached_CIDRs is None:
 		# inizializzo il dizionario
@@ -365,7 +368,10 @@ def is_already_mapped(IP):
 
 	for CIDR in Cached_CIDRs[ClasseA] + Cached_CIDRs[ClassePrecedente]:
 		if netaddr.ip.all_matching_cidrs(ip,[CIDR,]):
-			return True
+			if torna_la_cidr:
+				return str(netaddr.ip.all_matching_cidrs(ip,[CIDR,])[0])
+			else:
+				return True
 
 	return False
 
