@@ -58,10 +58,8 @@ def get_cidr(category):
 	# torno la lista delle cidr, e se Genera_Iptables è settato feeddo iptables
 
 	db = connetto_db()
-	if category == 'lasso':
-		db.execute("select CIDR from CIDR where CATEGORY=%s order by SIZE desc", (category,))
-	else:
-		db.execute("select CIDR from CIDR where CATEGORY=%s and SIZE >= 256 order by SIZE desc", (category,))
+	db.execute("select CIDR from CIDR where CATEGORY=%s order by SIZE desc", (category,))
+
 	elenco_cidr = []
 
 	for cidr in netaddr.cidr_merge(list([row[0] for row in db.fetchall()])):
@@ -330,10 +328,9 @@ def Clean_ip():
 
 	db = connetto_db()
 
-	db.execute("select IP from IP")
+	db.execute("select IP from IP order by IP")
 	for row in db.fetchall():
 		IP = netaddr.IPAddress(row[0])
-		print IP
 		if is_already_mapped(str(IP)):
 			print "Elimino: ",IP
 			db.execute("delete from IP where IP=%s",(int(IP),))
@@ -402,7 +399,7 @@ def scanner(IpBase, direction="before", debug=False):
 		return False
 
 	#definisco la partenza
-	ip          = IPAddress(str(IpBase))
+	ip          = netaddr.IPAddress(str(IpBase))
 	ipdns       = ip_to_dns(ip)
 	ip_distante = ip
 
@@ -456,13 +453,15 @@ def check_ip_brothers(IP):
 		print "Abbandono: nome non sospetto"
 		return None
 
-	ip_inizio = scanner(ip_to_check,direction="before")
-	ip_fine   = scanner(ip_to_check,direction="after")
+	ip_inizio, dns_inizio = scanner(ip_to_check,direction="before")
+	ip_fine,   dns_fine   = scanner(ip_to_check,direction="after")
+
+	print "risultato:",ip_inizio,ip_fine
 
 def check_db_ip():
 	db = connetto_db()
 
-	db.execute("select IP from IP LIMIT 1")
+	db.execute("select IP from IP ordery by COUNTER desc LIMIT 1")
 	for row in db.fetchall():
 		IP_base = netaddr.IPAddress(row[0])
 		check_ip_brothers(IP_base)

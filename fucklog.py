@@ -76,6 +76,10 @@ def mrproper(Id):
 		today_ip_blocked = 0 # azzero la statistica giornaliera
 		rm_old_iptables_chains()
 		is_already_mapped('127.0.0.1',reset_cache=True) # Barbatrucco per forzare il flush della cache delle CIDR
+		# elimino tutti gli IP che non si sono ripresentati negli ultimi 6 mesi
+		db = connetto_db()
+		db.execute('delete from IP where DATE < (CURRENT_TIMESTAMP() - INTERVAL 6 MONTH)')
+		db.close()
 
 def add_ip_to_eternity_block(IP):
 	# ricevo un IP, e lo metto nella chain del blocco permanente di IPTables
