@@ -140,7 +140,7 @@ def parse_log(Id):
 							os.system("/sbin/iptables -N 'fucklog-"+until_date+"'")
 							list_of_iptables_chains["fucklog-"+until_date] = None
 						os.system("/sbin/iptables -A 'fucklog-"+until_date+"' -s "+IP+" --protocol tcp --dport 25 -m time --datestop "+until_date+"T23:59:59 -j DROP")
-						logit("Parse: "+IP+'|'+str(blocked_for_days)+'|'+until_date+'|'+aggiungi_log+'|'+str(DNS)+' |'+FROM+' |'+TO+' |'+str(REASON))
+						logit("Parse: "+IP+'|'+str(blocked_for_days)+'|'+until_date+'|'+aggiungi_log+'|'+str(DNS)+'|'+FROM+'|'+TO+'|'+str(REASON))
 						if Block_Cidr_Too:
 							os.system("/sbin/iptables -A 'fucklog-"+until_date+"' -s "+Block_Cidr_Too+" --protocol tcp --dport 25 -m time --datestop "+until_date+"T23:59:59 -j DROP")
 							logit("Parse: "+Block_Cidr_Too+'|'+str(blocked_for_days)+'|'+until_date+'|'+aggiungi_log+'|'+str(DNS)+'|'+FROM+'|'+TO+'|'+str(REASON))
