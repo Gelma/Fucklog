@@ -144,7 +144,7 @@ def parse_log(Id):
 						if Block_Cidr_Too:
 							os.system("/sbin/iptables -A 'fucklog-"+until_date+"' -s "+Block_Cidr_Too+" --protocol tcp --dport 25 -m time --datestop "+until_date+"T23:59:59 -j DROP")
 							logit("Parse: "+Block_Cidr_Too+'|'+str(blocked_for_days)+'|'+until_date+'|'+aggiungi_log+'|'+str(DNS)+'|'+FROM+'|'+TO+'|'+str(REASON))
-							ipdb[Block_Cidr_Too] = None
+							if not ipdb.has_key(Block_Cidr_Too): ipdb[Block_Cidr_Too] = None
 							Block_Cidr_Too = None
 
 		update_stats()
