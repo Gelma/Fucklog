@@ -461,7 +461,7 @@ def check_ip_brothers(IP):
 def check_db_ip():
 	db = connetto_db()
 
-	db.execute("select IP from IP ordery by COUNTER desc LIMIT 1")
+	db.execute("select IP from IP order by RAND() LIMIT 1")
 	for row in db.fetchall():
 		IP_base = netaddr.IPAddress(row[0])
 		check_ip_brothers(IP_base)

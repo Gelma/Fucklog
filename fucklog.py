@@ -66,6 +66,7 @@ def rm_old_iptables_chains():
 
 def mrproper(Id):
 	global today_ip_blocked
+
 	while True:
 		# we calculate the number of seconds 'ntil the 23:59:59 of today
 		secs_of_sleep=((datetime.datetime.now().replace(hour=23,minute=59,second=59) - datetime.datetime.now()).seconds)+10
@@ -75,9 +76,9 @@ def mrproper(Id):
 		logit("MrProper: cleanup start")
 		today_ip_blocked = 0 # azzero la statistica giornaliera
 		rm_old_iptables_chains()
-		is_already_mapped('127.0.0.1',reset_cache=True) # Barbatrucco per forzare il flush della cache delle CIDR
+		fucklog_utils.is_already_mapped('127.0.0.1',reset_cache=True) # Barbatrucco per forzare il flush della cache delle CIDR
 		# elimino tutti gli IP che non si sono ripresentati negli ultimi 6 mesi
-		db = connetto_db()
+		db = fucklog_utils.connetto_db()
 		db.execute('delete from IP where DATE < (CURRENT_TIMESTAMP() - INTERVAL 6 MONTH)')
 		db.close()
 
@@ -136,7 +137,7 @@ def parse_log(Id):
 						#	se è un IP PBL non noto, lo metto in coda di soluzione via form web
 						elif fucklog_utils.is_pbl(IP):
 							aggiungi_log = 'PBL'
-							db.execute("insert into PBLURL (URL) values (%s)", (ip,))
+							db.execute("insert into PBLURL (URL) values (%s)", (IP,))
 						#  il resto è la solita procedura di blocco
 						until_date = str(datetime.date.today()+ datetime.timedelta(days=blocked_for_days))
 						if not list_of_iptables_chains.has_key("fucklog-"+until_date): # We check if exists the iptables chains
