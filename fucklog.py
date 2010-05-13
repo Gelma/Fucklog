@@ -82,12 +82,6 @@ def mrproper(Id):
 		db.execute('delete from IP where DATE < (CURRENT_TIMESTAMP() - INTERVAL 6 MONTH)')
 		db.close()
 
-def add_ip_to_eternity_block(IP):
-	# ricevo un IP, e lo metto nella chain del blocco permanente di IPTables
-	# trovare un modo fico per tenere traccia delle classi gia' presenti
-
-	os.system("/sbin/iptables -A 'fucklog-eternity' -s "+IP+" --protocol tcp --dport 25 -j DROP")
-
 def parse_log(Id):
 	global today_ip_blocked, all_ip_blocked
 
@@ -99,6 +93,7 @@ def parse_log(Id):
 		sys.exit(-1)
 
 	db = fucklog_utils.connetto_db()
+	Block_Cidr_Too = None
 
 	while True:
 		logit("Parse: begin read log file")
@@ -132,11 +127,11 @@ def parse_log(Id):
 						# inserimento in IPTables.
 						#	se è un IP gia' noto nelle CIDR lo metto nel blocco permanente
 						if fucklog_utils.is_already_mapped(IP):
-							aggiungi_log = 'Permanente'
-							add_ip_to_eternity_block( fucklog_utils.is_already_mapped(IP,torna_la_cidr=True) )
+							aggiungi_log = 'CIDR'
+							Block_Cidr_Too = fucklog_utils.is_already_mapped(IP,torna_la_cidr=True)
 						#	se è un IP PBL non noto, lo metto in coda di soluzione via form web
 						elif fucklog_utils.is_pbl(IP):
-							aggiungi_log = 'PBL'
+							aggiungi_log = 'qPBL'
 							db.execute("insert into PBLURL (URL) values (%s)", (IP,))
 						#  il resto è la solita procedura di blocco
 						until_date = str(datetime.date.today()+ datetime.timedelta(days=blocked_for_days))
@@ -146,6 +141,10 @@ def parse_log(Id):
 							list_of_iptables_chains["fucklog-"+until_date] = None
 						os.system("/sbin/iptables -A 'fucklog-"+until_date+"' -s "+IP+" --protocol tcp --dport 25 -m time --datestop "+until_date+"T23:59:59 -j DROP")
 						logit("Parse: "+IP+'|'+str(blocked_for_days)+'|'+until_date+'|'+aggiungi_log+'|'+str(DNS)+' |'+FROM+' |'+TO+' |'+str(REASON))
+						if Block_Cidr_Too:
+							os.system("/sbin/iptables -A 'fucklog-"+until_date+"' -s "+Block_Cidr_Too+" --protocol tcp --dport 25 -m time --datestop "+until_date+"T23:59:59 -j DROP")
+							logit("Parse: "+Block_Cidr_Too+'|'+str(blocked_for_days)+'|'+until_date+'|'+aggiungi_log+'|'+str(DNS)+'|'+FROM+'|'+TO+'|'+str(REASON))
+							Block_Cidr_Too = None
 
 		update_stats()
 		time.sleep(60*interval)
@@ -161,11 +160,8 @@ if __name__ == "__main__":
 			if line.startswith('DROP'):
 				ipdb[ line.split()[3] ] = None
 				all_ip_blocked += 1
-		if chain_name != 'fucklog-eternity': list_of_iptables_chains[chain_name] = None
+		list_of_iptables_chains[chain_name] = None
 	rm_old_iptables_chains()
-
-	# creo la Chain eterna
-	os.system("/sbin/iptables -N 'fucklog-eternity'")
 
 	thread.start_new_thread(parse_log,  (1, ))
 	thread.start_new_thread(mrproper,   (1, ))
