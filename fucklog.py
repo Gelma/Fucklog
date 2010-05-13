@@ -147,6 +147,7 @@ def parse_log(Id):
 							if not ipdb.has_key(Block_Cidr_Too): ipdb[Block_Cidr_Too] = None
 							Block_Cidr_Too = None
 
+		logit("Parse: end read")
 		update_stats()
 		time.sleep(60*interval)
 
