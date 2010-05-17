@@ -52,11 +52,9 @@ def rm_old_iptables_chains():
 			for chain_ip in os.popen('/sbin/iptables -L '+chain_name+' -n'):
 				if chain_ip.startswith("DROP"):
 					ip_to_remove = chain_ip.split()[3]
-					try:
+					if ipdb.has_key(ip_to_remove): #se non ho l'IP da rimuovere: regola a mano, oppure CIDR/IP
 						del ipdb[ip_to_remove]
-					except:
-						logit("CleanIptables: IP "+ip_to_remove+" not present in DB")
-					all_ip_blocked -= 1
+						all_ip_blocked -= 1
 			# remove the chain
 			for flag in ['F',  'X']: #chain flush and remove
 				os.system("/sbin/iptables -"+flag+" "+chain_name)
@@ -93,7 +91,7 @@ def parse_log(Id):
 		sys.exit(-1)
 
 	db = fucklog_utils.connetto_db()
-	Block_Cidr_Too = None
+	Cidr_To_Block = None
 
 	while True:
 		logit("Parse: begin read log file")
@@ -101,10 +99,10 @@ def parse_log(Id):
 			for REASON, regexp in enumerate(RegExps): # REASON=0 (rbl) 1 (helo)
 				m = regexp.match(log_line) # match for regexp
 				if m: # if it matches
-					aggiungi_log = ''
 					IP = m.group(2)
 					if not ipdb.has_key(IP):
 						ipdb[IP] = None
+						aggiungi_log = ''
 						# Estrapolo i dati
 						DNS, FROM, TO = m.group(1), m.group(3), m.group(4) #Assign to more readable vars
 						if DNS == 'unknown': DNS = None
@@ -112,43 +110,44 @@ def parse_log(Id):
 						db.execute('select COUNTER from IP where IP=INET_ATON(%s)', (IP,))
 						tmp = db.fetchone()
 						if tmp:
-							blocked_for_days = tmp[0]
+							blocked_for_days = tmp[0] + 1
 						else:
-							blocked_for_days = 0
-						blocked_for_days += 1
-						# aggiorno totali
-						today_ip_blocked += 1
-						all_ip_blocked += 1
-						# inserimento/update di MySQL
+							blocked_for_days = 1
+						# aggiorno contatore persistente in MySQL
 						try:
 							db.execute("insert into IP (IP, DNS, FROOM, TOO, REASON, LINE, GEOIP) values (INET_ATON(%s), %s, %s, %s, %s, %s, %s)", (IP, DNS, FROM, TO, REASON, log_line, fucklog_utils.geoip_from_ip(IP)))
 						except db.IntegrityError:
 							db.execute("update IP set DNS=%s, FROOM=%s, TOO=%s, REASON=%s, LINE=%s, counter=counter+1, DATE=CURRENT_TIMESTAMP where IP=INET_ATON(%s)", (DNS, FROM, TO, REASON, log_line, IP))
-						# inserimento in IPTables.
-						#	se è un IP gia' noto nelle CIDR lo metto nel blocco permanente
-						if fucklog_utils.is_already_mapped(IP):
-							aggiungi_log = 'CIDR'
-							Block_Cidr_Too = fucklog_utils.is_already_mapped(IP,torna_la_cidr=True)
-						#	se è un IP PBL non noto, lo metto in coda di soluzione via form web
-						elif fucklog_utils.is_pbl(IP):
-							aggiungi_log = 'qPBL'
-							db.execute("insert into PBLURL (URL) values (%s)", (IP,))
-						#  il resto è la solita procedura di blocco
+						# calcolo la data di termine, e controllo che esista la chain relativa
 						until_date = str(datetime.date.today()+ datetime.timedelta(days=blocked_for_days))
-						if not list_of_iptables_chains.has_key("fucklog-"+until_date): # We check if exists the iptables chains
-							logit("Parse: create chain fucklog-"+until_date)
-							os.system("/sbin/iptables -N 'fucklog-"+until_date+"'")
-							list_of_iptables_chains["fucklog-"+until_date] = None
-						os.system("/sbin/iptables -A 'fucklog-"+until_date+"' -s "+IP+" --protocol tcp --dport 25 -m time --datestop "+until_date+"T23:59:59 -j DROP")
-						logit("Parse: "+IP+'|'+str(blocked_for_days)+'|'+until_date+'|'+aggiungi_log+'|'+str(DNS)+'|'+FROM+'|'+TO+'|'+str(REASON))
-						if Block_Cidr_Too:
-							if Block_Cidr_Too.endswith('/32'):
-								logit('Parse: '+Block_Cidr_Too+' no block because /32')
-							else:
-								os.system("/sbin/iptables -A 'fucklog-"+until_date+"' -s "+Block_Cidr_Too+" --protocol tcp --dport 25 -m time --datestop "+until_date+"T23:59:59 -j DROP")
-								logit("Parse: "+Block_Cidr_Too+'|'+str(blocked_for_days)+'|'+until_date+'|'+aggiungi_log+'|'+str(DNS)+'|'+FROM+'|'+TO+'|'+str(REASON))
-								if not ipdb.has_key(Block_Cidr_Too): ipdb[Block_Cidr_Too] = None
-								Block_Cidr_Too = None
+						if not list_of_iptables_chains.has_key("fucklog-"+until_date):
+						logit("Parse: create chain fucklog-"+until_date)
+						os.system("/sbin/iptables -N 'fucklog-"+until_date+"'")
+						list_of_iptables_chains["fucklog-"+until_date] = None
+						#	se si tratta di un IP con CIDR nota, leggo la CIDR
+						if fucklog_utils.is_already_mapped(IP):
+							Cidr_To_Block = fucklog_utils.is_already_mapped(IP,torna_la_cidr=True)
+							aggiungi_log   = 'CIDR'
+							#	e se è un IP PBL non noto, lo metto in coda di soluzione via form web
+						elif fucklog_utils.is_pbl(IP):
+							db.execute("insert into PBLURL (URL) values (%s)", (IP,))
+							aggiungi_log   = 'qPBL'
+						# inserimento in IPTables (non va bene, manca il flush degli IP delle CIDR in coda)
+						if Cidr_To_Block: # se ho la CIDR
+							if ipdb.has_key(Cidr_To_Block): # controllo se sia gia' bloccata
+								continue # nel qual caso mollo e passo alla riga successiva
+							else: # diversamente, se non è gia' bloccata,
+								address_for_iptables = Cidr_To_Block # la setto per il blocco
+								ipdb[Cidr_To_Block] = None # metto la CIDR in cache
+								Cidr_To_Block = None # resetto il valore per il prossimo giro
+						else:
+							address_for_iptables = IP # se non ho la CIDR blocco il singolo IP
+
+						os.system("/sbin/iptables -A 'fucklog-"+until_date+"' -s "+address_for_iptables+" --protocol tcp --dport 25 -m time --datestop "+until_date+"T23:59:59 -j DROP")
+						logit("Parse: "+address_for_iptables+'|'+str(blocked_for_days)+'|'+until_date+'|'+aggiungi_log+'|'+str(DNS)+'|'+FROM+'|'+TO+'|'+str(REASON))
+						# aggiorno i totali
+						today_ip_blocked += 1
+						all_ip_blocked += 1
 
 		logit("Parse: end read")
 		update_stats()
