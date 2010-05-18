@@ -52,11 +52,15 @@ def rm_old_iptables_chains():
 			for chain_ip in os.popen('/sbin/iptables -L '+chain_name+' -n'):
 				if chain_ip.startswith("DROP"):
 					ip_to_remove = chain_ip.split()[3]
-					if ipdb.has_key(ip_to_remove): #se non ho l'IP da rimuovere: regola a mano, oppure CIDR/IP
-						del ipdb[ip_to_remove]
-						all_ip_blocked -= 1
+					if ipdb.has_key(ip_to_remove): # se non ho l'IP da rimuovere: regola a mano, oppure CIDR/IP
+						if ipdb[ip_to_remove]: # elimino anche un eventuale IP associato all'IP che sto leggendo
+							logit('Elimino IP e CIDR:',ip_to_remove, ipdb[ip_to_remove])
+							del ipdb[ ipdb[ip_to_remove] ] # non devo ridurre il totale
+						else: # diversamente è un caso normale, elimino l'IP
+							del ipdb[ip_to_remove]
+							all_ip_blocked -= 1
 			# remove the chain
-			for flag in ['F',  'X']: #chain flush and remove
+			for flag in ['F', 'X']: #chain flush and remove
 				os.system("/sbin/iptables -"+flag+" "+chain_name)
 			del list_of_iptables_chains[chain_name]
 			logit("CleanIptables: chain removed "+chain_name)
@@ -121,28 +125,27 @@ def parse_log(Id):
 						# calcolo la data di termine, e controllo che esista la chain relativa
 						until_date = str(datetime.date.today()+ datetime.timedelta(days=blocked_for_days))
 						if not list_of_iptables_chains.has_key("fucklog-"+until_date):
-						logit("Parse: create chain fucklog-"+until_date)
-						os.system("/sbin/iptables -N 'fucklog-"+until_date+"'")
-						list_of_iptables_chains["fucklog-"+until_date] = None
-						#	se si tratta di un IP con CIDR nota, leggo la CIDR
+							os.system("/sbin/iptables -N 'fucklog-"+until_date+"'")
+							list_of_iptables_chains["fucklog-"+until_date] = None
+						# se si tratta di un IP con CIDR nota, leggo la CIDR
 						if fucklog_utils.is_already_mapped(IP):
 							Cidr_To_Block = fucklog_utils.is_already_mapped(IP,torna_la_cidr=True)
-							aggiungi_log   = 'CIDR'
+							aggiungi_log  = 'CIDR'
 							#	e se è un IP PBL non noto, lo metto in coda di soluzione via form web
 						elif fucklog_utils.is_pbl(IP):
 							db.execute("insert into PBLURL (URL) values (%s)", (IP,))
-							aggiungi_log   = 'qPBL'
+							aggiungi_log  = 'qPBL'
 						# inserimento in IPTables (non va bene, manca il flush degli IP delle CIDR in coda)
 						if Cidr_To_Block: # se ho la CIDR
 							if ipdb.has_key(Cidr_To_Block): # controllo se sia gia' bloccata
 								continue # nel qual caso mollo e passo alla riga successiva
 							else: # diversamente, se non è gia' bloccata,
 								address_for_iptables = Cidr_To_Block # la setto per il blocco
-								ipdb[Cidr_To_Block] = None # metto la CIDR in cache
+								ipdb[Cidr_To_Block] = IP # metto la CIDR in cache e ci associo il singolo IP, per la rimozione in fase di cleanup
 								Cidr_To_Block = None # resetto il valore per il prossimo giro
 						else:
 							address_for_iptables = IP # se non ho la CIDR blocco il singolo IP
-
+						# invoco davvero il blocco con IPTables
 						os.system("/sbin/iptables -A 'fucklog-"+until_date+"' -s "+address_for_iptables+" --protocol tcp --dport 25 -m time --datestop "+until_date+"T23:59:59 -j DROP")
 						logit("Parse: "+address_for_iptables+'|'+str(blocked_for_days)+'|'+until_date+'|'+aggiungi_log+'|'+str(DNS)+'|'+FROM+'|'+TO+'|'+str(REASON))
 						# aggiorno i totali
