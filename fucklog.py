@@ -7,6 +7,7 @@ if True: # Global vars
 	mysql_host, mysql_user, mysql_passwd, mysql_db = "localhost", "fucklog", "pattinaggio", "fucklog"
 
 	# vars
+	cached_ips = {}
 	interval = 15 # minutes
 	RegExps = [] # list of regular expressions to apply
 	RegExps.append(re.compile('.*RCPT from (.*)\[(.*)\]:.*blocked using.*from=<(.*)> to=<(.*)> proto')) # blacklist
@@ -44,23 +45,34 @@ def update_stats():
 
 def rm_old_iptables_chains():
 	global all_ip_blocked
+	global cached_ips # probabilmente si puo' eliminare
 
 	my_today = 'fucklog-'+str(datetime.date.today())
 	for chain_name in list_of_iptables_chains.keys():
 		if (chain_name < my_today):
+			logit("Proper: parso la chain: "+chain_name)
 			# select and delete every chain's IP
 			for chain_ip in os.popen('/sbin/iptables -L '+chain_name+' -n'):
 				if chain_ip.startswith("DROP"):
 					ip_to_remove = chain_ip.split()[3]
-					if ipdb.has_key(ip_to_remove): # se non ho l'IP da rimuovere: regola a mano, oppure CIDR/IP
-						if ipdb[ip_to_remove]: # elimino anche un eventuale IP associato all'IP che sto leggendo
-							logit('Elimino IP e CIDR:',ip_to_remove, ipdb[ip_to_remove])
-							del ipdb[ ipdb[ip_to_remove] ] # non devo ridurre il totale
-						else: # diversamente è un caso normale, elimino l'IP
-							del ipdb[ip_to_remove]
-							all_ip_blocked -= 1
+					logit("Proper: leggo l'IP "+ip_to_remove)
+					# se l'IP è presente nella cache
+					if cached_ips.has_key(ip_to_remove):
+						logit("Proper: l'IP è in cached_ips "+ip_to_remove)
+						# elimino prima un eventuale valore (CIDR) associato
+						if cached_ips[ip_to_remove]:
+							logit("Parse: alla chiave IP è associato un valore "+cached_ips[ip_to_remove])
+							try:
+								del cached_ips[ cached_ips[ip_to_remove] ]
+							except:
+								logit("Parse: exception nella rimozione di "+cached_ips[ip_to_remove])
+								pass
+						# e in fine l'IP principale
+						del cached_ips[ip_to_remove]
+						all_ip_blocked -= 1
+						logit("Proper: l'IP è stato rimosso "+ ip_to_remove)
 			# remove the chain
-			for flag in ['F', 'X']: #chain flush and remove
+			for flag in ['F', 'X']: # chain flush and remove
 				os.system("/sbin/iptables -"+flag+" "+chain_name)
 			del list_of_iptables_chains[chain_name]
 			logit("CleanIptables: chain removed "+chain_name)
@@ -71,12 +83,12 @@ def mrproper(Id):
 
 	while True:
 		# we calculate the number of seconds 'ntil the 23:59:59 of today
-		secs_of_sleep=((datetime.datetime.now().replace(hour=23,minute=59,second=59) - datetime.datetime.now()).seconds)+10
-		#secs_of_sleep = 60 # temp
+		secs_of_sleep = ((datetime.datetime.now().replace(hour=23,minute=59,second=59) - datetime.datetime.now()).seconds)+10
+		#secs_of_sleep = 20 # temp
 		logit("MrProper: sleep for "+str(secs_of_sleep)+" seconds")
 		time.sleep(secs_of_sleep)
 		logit("MrProper: cleanup start")
-		today_ip_blocked = 0 # azzero la statistica giornaliera
+		today_ip_blocked = 0
 		rm_old_iptables_chains()
 		fucklog_utils.is_already_mapped('127.0.0.1',reset_cache=True) # Barbatrucco per forzare il flush della cache delle CIDR
 		# elimino tutti gli IP che non si sono ripresentati negli ultimi 6 mesi
@@ -104,8 +116,8 @@ def parse_log(Id):
 				m = regexp.match(log_line) # match for regexp
 				if m: # if it matches
 					IP = m.group(2)
-					if not ipdb.has_key(IP):
-						ipdb[IP] = None
+					if not cached_ips.has_key(IP):
+						cached_ips[IP] = None
 						aggiungi_log = ''
 						# Estrapolo i dati
 						DNS, FROM, TO = m.group(1), m.group(3), m.group(4) #Assign to more readable vars
@@ -135,13 +147,13 @@ def parse_log(Id):
 						elif fucklog_utils.is_pbl(IP):
 							db.execute("insert into PBLURL (URL) values (%s)", (IP,))
 							aggiungi_log  = 'qPBL'
-						# inserimento in IPTables (non va bene, manca il flush degli IP delle CIDR in coda)
+						# inserimento in IPTables
 						if Cidr_To_Block: # se ho la CIDR
-							if ipdb.has_key(Cidr_To_Block): # controllo se sia gia' bloccata
+							if cached_ips.has_key(Cidr_To_Block): # controllo se sia gia' bloccata
 								continue # nel qual caso mollo e passo alla riga successiva
 							else: # diversamente, se non è gia' bloccata,
 								address_for_iptables = Cidr_To_Block # la setto per il blocco
-								ipdb[Cidr_To_Block] = IP # metto la CIDR in cache e ci associo il singolo IP, per la rimozione in fase di cleanup
+								cached_ips[Cidr_To_Block] = IP # metto la CIDR in cache e ci associo il singolo IP, per la rimozione in fase di cleanup
 								Cidr_To_Block = None # resetto il valore per il prossimo giro
 						else:
 							address_for_iptables = IP # se non ho la CIDR blocco il singolo IP
@@ -150,22 +162,19 @@ def parse_log(Id):
 						logit("Parse: "+address_for_iptables+'|'+str(blocked_for_days)+'|'+until_date+'|'+aggiungi_log+'|'+str(DNS)+'|'+FROM+'|'+TO+'|'+str(REASON))
 						# aggiorno i totali
 						today_ip_blocked += 1
-						all_ip_blocked += 1
+						all_ip_blocked   += 1
 
 		logit("Parse: end read")
 		update_stats()
 		time.sleep(60*interval)
 
 if __name__ == "__main__":
-
-	ipdb = {}
-
 	# Resume list of iptables chains and delete the old ones
 	for line in os.popen("/sbin/iptables -L -n|grep  'Chain fucklog'"):
 		chain_name = line.split()[1]
 		for line in os.popen("/sbin/iptables -n -L "+chain_name):
 			if line.startswith('DROP'):
-				ipdb[ line.split()[3] ] = None
+				cached_ips[ line.split()[3] ] = None
 				all_ip_blocked += 1
 		list_of_iptables_chains[chain_name] = None
 	rm_old_iptables_chains()
@@ -180,5 +189,5 @@ if __name__ == "__main__":
 			sys.exit()
 		if command == "s":
 			logit("Stats: "+str(today_ip_blocked)+"/"+str(all_ip_blocked)+'-'+str(len(list_of_iptables_chains)))
-			print "   Today IP blocked:", today_ip_blocked, "/",  all_ip_blocked,  ". Chains: ", len(list_of_iptables_chains)
-			print "   IPdb size:",len(ipdb)
+			print "   Today IP / all IP blocked:", today_ip_blocked, "/",  all_ip_blocked,  ". Chains: ", len(list_of_iptables_chains)
+			print "   cached_ips size:",len(cached_ips)
