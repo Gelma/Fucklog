@@ -182,12 +182,10 @@ def Pbl_in_iptables():
 					return
 
 def Pbl_queue():
-	# Attenzione: l'inserimento nella coda ora avviene direttamente da fucklog a runtime.
-	# Viene mantenuta la fase di cleanup
-	# leggo log e prendo URL di pbl.spamhaus e lo metto in PBLURL in MySQL
-	# per il check successivo via WEB del CIDR relativo
-	# e porto in IPTABLES le CIDR inserite via web
-	# inoltre controllo se anche gli altri IP in coda sono gia' risolti
+	# Prendo le pbl.spamhaus.org dal log di postfix
+	# Porto il tutto in PBLURL->Fucklog-Mysql
+	# Vaglio le CIDR inserite via WEB
+	# 
 
 	import re
 	global Genera_Iptables
@@ -486,7 +484,7 @@ Opzioni:
 	-s --size_cidr       Torna il numero di IP che compongono una CIDR
 	-t --totali          Totale degli IP suddivisi per classi A
 	-x --cidr_db_size    Aggiorna le dimensioni delle CIDR in MySQLdb
-	-y --pbl-queue       Porta pbl URL da log nella tabella PBLURL, e committo le CIDR inserite via web
+	-y --pbl-queue       Porta pbl URL da log nella tabella PBLURL, e committo le CIDR inserite via web (onoro -k e -i)
 	-z --clean-ip        Sego da IP->MySQL gli IP presenti nelle CIDR pbl
 """
 		sys.exit(-1)
