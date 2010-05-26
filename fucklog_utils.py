@@ -95,6 +95,34 @@ def is_pbl(IP):
 		for s in rr.strings:
 			return s
 
+def iptables_to_nat():
+	# prendo tutti gli IP bloccati da fucklog e li metto nel nat per la redirezione della 25 verso la 25000
+	
+	while True:
+		file_per_iptables = "/tmp/.fucklog_iptables_restore"
+		# creo la testa del file da passare a iptables-restore
+		filettone = open(file_per_iptables, 'w')
+		filettone.write("*nat"+"\n")
+		filettone.write(":PREROUTING ACCEPT [0:0]"+"\n")
+		filettone.write(":OUTPUT ACCEPT [0:0]"+"\n")
+		filettone.write(":POSTROUTING ACCEPT [0:0]"+"\n")
+	
+		for ip in os.popen("/sbin/iptables-save |/bin/grep '^-A fucklog-.*-p tcp -m tcp --dport 25 -m time --datestop.*-j DROP' | cut -f 4 -d ' '"):
+			ip = ip[:-1]
+			filettone.write("-A PREROUTING -s "+ip+" -p tcp -m tcp --dport 25 -j REDIRECT --to-ports 25000"+"\n")
+		
+		filettone.write("COMMIT"+"\n")
+		filettone.close()
+		
+		# invoco iptables-restore
+		os.popen("/sbin/iptables-restore < " + file_per_iptables)
+		os.remove(file_per_iptables)
+		
+		if KeepAlive is False:
+			break
+		else:
+			time.sleep(3600)
+	
 # funzioni richiamabili da riga di comando
 def Cristini():
 	# leggo il file di Necro
