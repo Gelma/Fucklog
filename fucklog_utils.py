@@ -97,9 +97,12 @@ def is_pbl(IP):
 
 def iptables_to_nat():
 	# prendo tutti gli IP bloccati da fucklog e li metto nel nat per la redirezione della 25 verso la 25000
-	
+	# smtp-sink -4 -c -d "%Y%m%d%H%M." -u check -R /home/gelma.net/check/SpoolSpam/new/ -h lugbs.linux.it 25000 512
+	# iptables -t nat -F
+
+	file_per_iptables = "/tmp/.fucklog_iptables_restore"
+
 	while True:
-		file_per_iptables = "/tmp/.fucklog_iptables_restore"
 		# creo la testa del file da passare a iptables-restore
 		filettone = open(file_per_iptables, 'w')
 		filettone.write("*nat"+"\n")
@@ -107,10 +110,12 @@ def iptables_to_nat():
 		filettone.write(":OUTPUT ACCEPT [0:0]"+"\n")
 		filettone.write(":POSTROUTING ACCEPT [0:0]"+"\n")
 	
+		# le regole effettive
 		for ip in os.popen("/sbin/iptables-save |/bin/grep '^-A fucklog-.*-p tcp -m tcp --dport 25 -m time --datestop.*-j DROP' | cut -f 4 -d ' '"):
 			ip = ip[:-1]
 			filettone.write("-A PREROUTING -s "+ip+" -p tcp -m tcp --dport 25 -j REDIRECT --to-ports 25000"+"\n")
 		
+		# la coda e chiudo
 		filettone.write("COMMIT"+"\n")
 		filettone.close()
 		
@@ -308,9 +313,7 @@ def Pbl_queue():
 
 def Lasso_update():
 	# Invocato, scarico e aggiorno l'elenco di Spamhaus Lasso.
-	# Onoro --iptables
-
-	import datetime
+	# Onoro --iptables e --keep
 
 	while True:
 		print "Update:",str(datetime.datetime.now())
@@ -335,6 +338,37 @@ def Lasso_update():
 			break
 		else:
 			time.sleep(129600) # aggiorna dopo 36 ore
+
+def UCE_update():
+	# Invocato, scarico e aggiorno l'elenco di UCE.
+	# Onoro --keep
+
+	while True:
+		print "UCE update:",str(datetime.datetime.now())
+
+		os.system('/usr/bin/rsync -aPz --compress-level=9 rsync-mirrors.uceprotect.net::RBLDNSD-ALL/dnsbl-2.uceprotect.net /tmp/.dnsbl-2.uceprotect.net')
+		os.system('/usr/bin/rsync -aPz --compress-level=9 rsync-mirrors.uceprotect.net::RBLDNSD-ALL/dnsbl-3.uceprotect.net /tmp/.dnsbl-3.uceprotect.net')
+		
+		db = connetto_db()
+		db.execute("delete from CIDR where CATEGORY='uce'")
+
+		for cidr in os.popen("/bin/cat /tmp/.dnsbl-?.uceprotect.net"):
+			cidr = cidr.split()[0]
+			try:
+				cidr = netaddr.IPNetwork(cidr)
+			except:
+				#print "Scarto cidr",cidr
+				continue
+			try:
+				db.execute("insert into CIDR(CIDR, SIZE, CATEGORY) values (%s,%s,'uce')", (cidr, cidr.size))
+			except:
+				pass
+				#print "Fallito inserimento", cidr
+
+		if KeepAlive is False:
+			break
+		else:
+			time.sleep(86400) # aggiorna dopo 36 ore
 
 def Totali():
 	# Invocato torno il numero totale di IP suddivisi per classi A
@@ -369,9 +403,7 @@ def is_already_mapped(IP,reset_cache=False,torna_la_cidr=False):
 
 	global Cached_CIDRs
 
-	if reset_cache: Cached_CIDRs = None
-
-	if Cached_CIDRs is None:
+	if Cached_CIDRs is None or reset_cache is True:
 		# inizializzo il dizionario
 		Cached_CIDRs = {}
 		for n in xrange(256):
