@@ -218,7 +218,6 @@ def Pbl_queue():
 	# Prendo le pbl.spamhaus.org dal log di postfix
 	# Porto il tutto in PBLURL->Fucklog-Mysql
 	# Vaglio le CIDR inserite via WEB
-	# 
 
 	import re
 	global Genera_Iptables
@@ -320,7 +319,9 @@ def Lasso_update():
 		try:
 			lassofile = urllib.urlopen("http://www.spamhaus.org/drop/drop.lasso")
 		except:
-			logga("Lasso update: fallita lettura URL","exit")
+			logga("Lasso update: fallita lettura URL")
+			time.sleep(86400)
+			continue
 
 		db = connetto_db()
 		db.execute("delete from CIDR where CATEGORY='lasso'")
@@ -408,13 +409,19 @@ def is_already_mapped(IP,reset_cache=False,torna_la_cidr=False):
 		Cached_CIDRs = {}
 		for n in xrange(256):
 			Cached_CIDRs[str(n)] = []
-		# succhio dal db
+		# succhio dal db e creo le liste per classe A
 		db = connetto_db()
 		db.execute('select CIDR from CIDR order by SIZE desc')
 		for row in db.fetchall():
 			CIDR = row[0]
 			classe = CIDR.split('.')[0]
 			Cached_CIDRs[classe].append(CIDR)
+		# riduco ogni classe A ai minimi termini
+		for A in Cached_CIDRs:
+			if len(Cached_CIDRs[A]):
+				#inizio = len(Cached_CIDRs[A])
+				Cached_CIDRs[A] = netaddr.cidr_merge(Cached_CIDRs[A])
+				#print "Differenza",inizio-len(Cached_CIDRs[A])
 		db.close()
 
 	ip = netaddr.IPAddress(str(IP).strip())
