@@ -1,14 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import datetime, os, re, shelve, sys, thread, time, MySQLdb, fucklog_utils
+import datetime, os, re, shelve, sys, thread, time, fucklog_utils
 
 if True: # Global vars
 	postfix_log_file = "/var/log/everything/current"
-	mysql_host, mysql_user, mysql_passwd, mysql_db = "localhost", "fucklog", "pattinaggio", "fucklog"
 
 	# vars
 	cached_ips = {}
-	interval = 15 # minutes
+	interval = 10 # minutes
 	RegExps = [] # list of regular expressions to apply
 	RegExps.append(re.compile('.*RCPT from (.*)\[(.*)\]:.*blocked using.*from=<(.*)> to=<(.*)> proto')) # blacklist
 	RegExps.append(re.compile('.*NOQUEUE: reject: RCPT from (.*)\[(.*)\].*Helo command rejected: need fully-qualified hostname; from=<(.*)> to=<(.*)> proto')) # broken helo
@@ -17,7 +16,7 @@ if True: # Global vars
 	today_ip_blocked = all_ip_blocked = 0
 	# Locks
 	lock_output_log_file = thread.allocate_lock()
-	update_stats_lock = thread.allocate_lock()
+	lock_stats_update = thread.allocate_lock()
 	# Logfile
 	output_log_file = '/tmp/.fucklog_log_file.txt'
 	log_file = open(output_log_file,'a')
@@ -34,14 +33,14 @@ def logit(text):
 def update_stats():
 	global today_ip_blocked,  all_ip_blocked
 
-	update_stats_lock.acquire()
+	lock_stats_update.acquire()
 	file_mrtg_stats.seek(0)
 	file_mrtg_stats.truncate(0)
 	file_mrtg_stats.write(str(all_ip_blocked)+'\n'+str(today_ip_blocked)+'\n')
 	file_mrtg_stats.write(str(today_ip_blocked)+'/'+str(all_ip_blocked)+'\n')
 	file_mrtg_stats.write('spam\n')
 	file_mrtg_stats.flush()
-	update_stats_lock.release()
+	lock_stats_update.release()
 
 def rm_old_iptables_chains():
 	global all_ip_blocked
@@ -84,7 +83,7 @@ def mrproper(Id):
 	while True:
 		# we calculate the number of seconds 'ntil the 23:59:59 of today
 		secs_of_sleep = ((datetime.datetime.now().replace(hour=23,minute=59,second=59) - datetime.datetime.now()).seconds)+10
-		#secs_of_sleep = 20 # temp
+		#secs_of_sleep = 60 # temp
 		logit("MrProper: sleep for "+str(secs_of_sleep)+" seconds")
 		time.sleep(secs_of_sleep)
 		logit("MrProper: cleanup start")
@@ -163,7 +162,6 @@ def parse_log(Id):
 						# aggiorno i totali
 						today_ip_blocked += 1
 						all_ip_blocked   += 1
-
 		logit("Parse: end read")
 		update_stats()
 		time.sleep(60*interval)

@@ -1,30 +1,34 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+# http://code.google.com/p/netaddr
+# python-dnspython
 
-try:
-	import psyco, dns.resolver, dns.reversename, getopt, MySQLdb, netaddr, os, pygeoip, sys, socket, time, urllib, datetime, re, shelve, thread
-except:
-	print "Mancano dei moduli. Probabilmente\nhttp://code.google.com/p/netaddr\npython-dnspython"
+import netaddr, os, sys, socket, time, datetime, re, thread
 
-# Dati costanti per MysqlDB
-mysql_host, mysql_user, mysql_passwd, mysql_db = "localhost", "fucklog", "pattinaggio", "fucklog"
-# Dati costanti per GeoIP
-geoip_db_file = "/opt/GeoIP/GeoLiteCity.dat"
-geoip_db = False
-# Dati costanti per flag
-azione = None
-Genera_Iptables = None
-KeepAlive = False
-Cached_CIDRs = None
+if True:
+	# Dati costanti per MysqlDB
+	mysql_host, mysql_user, mysql_passwd, mysql_db = "localhost", "fucklog", "pattinaggio", "fucklog"
+	# Dati costanti per GeoIP
+	geoip_db_file = "/opt/GeoIP/GeoLiteCity.dat"
+	geoip_db = False
+	# Dati costanti per flag
+	azione = None
+	Genera_Iptables = None
+	KeepAlive = False
+	Cached_CIDRs = None
+	# Locks
+	lock_cached_cidrs = thread.allocate_lock()
 
 # funzioni ausiliarie
 def connetto_db():
+	import MySQLdb
 	try:
 		return MySQLdb.connect(host=mysql_host, user=mysql_user, passwd=mysql_passwd, db=mysql_db).cursor()
 	except:
 		logga('MySQL: Connessione al DB fallita','exit')
 
 def compatta_cbl():
+	# leggo /tmp/cbl e compatto in cidr ogni IP per riga
 	f = open('/tmp/cbl','r')
 
 	elencone = list([l[:-1] for l in f])
@@ -42,12 +46,12 @@ def compatta_cbl():
 
 
 def geoip_from_ip(IP):
-	# ricevo un IP, torno la nazione o 'N/A' se non lo so
+	# ricevo un IP, torno la nazione o None
+	import pygeoip
 	global geoip_db
 
 	if geoip_db is False:
 		geoip_db = pygeoip.GeoIP(geoip_db_file)
-
 	try:
 		return geoip_db.country_name_by_addr(IP)
 	except:
@@ -57,10 +61,9 @@ def get_cidr(category):
 	# ricevo la discriminante category (equivale alla colonna omonima in CIDR db)
 	# torno la lista delle cidr, e se Genera_Iptables è settato feeddo iptables
 
+	elenco_cidr = []
 	db = connetto_db()
 	db.execute("select CIDR from CIDR where CATEGORY=%s order by SIZE desc", (category,))
-
-	elenco_cidr = []
 
 	for cidr in netaddr.cidr_merge(list([row[0] for row in db.fetchall()])):
 			elenco_cidr.append(str(cidr))
@@ -78,14 +81,16 @@ def get_cidr(category):
 def reverse_ip(IP):
 	# ricevo un IP 1.2.3.4 e lo torno girato 4.3.2.1
 
-	n = IP.split('.')
-	n.reverse()
-	return '.'.join(n)
+	IP = IP.split('.')
+	IP.reverse()
+	return '.'.join(IP)
 
 def is_pbl(IP):
 	# ricevo un IP. Torno False se non in pbl.spamhaus.org
 	# torno il link diversamente
 
+	import dns.resolver, dns.reversename
+	
 	qstr = "%s.pbl.spamhaus.org." % reverse_ip(IP)
 	try:
 		qa = dns.resolver.query(qstr, 'TXT')
@@ -219,7 +224,6 @@ def Pbl_queue():
 	# Porto il tutto in PBLURL->Fucklog-Mysql
 	# Vaglio le CIDR inserite via WEB
 
-	import re
 	global Genera_Iptables
 	global Cached_CIDRs
 	Cached_CIDRs = None # Azzero la cache delle CIDRs
@@ -267,9 +271,7 @@ def Pbl_queue():
 				continue
 
 			# controllo che IP e CIDR siano compatibili
-			if netaddr.ip.all_matching_cidrs(netaddr.IPAddress(IP),[netaddr.IPNetwork(CIDR),]):
-				pass
-			else:
+			if not netaddr.ip.all_matching_cidrs(netaddr.IPAddress(IP),[netaddr.IPNetwork(CIDR),]):
 				print "Non combaciano IP/CIDR",IP,CIDR
 				db.execute("delete from PBLURL where URL=%s",(IP,))
 				continue
@@ -295,7 +297,7 @@ def Pbl_queue():
 				print "Non è un IP valido", IP
 				db.execute("delete from PBLURL where URL=%s",(IP,))
 				continue
-			# controllo che non sia gia' mappato (solo la roba nuova)
+			# controllo che non sia gia' mappato
 			if is_already_mapped(IP):
 				print "Gia' mappato (tutti)",IP
 				db.execute("delete from PBLURL where URL=%s",(IP,))
@@ -313,6 +315,7 @@ def Pbl_queue():
 def Lasso_update():
 	# Invocato, scarico e aggiorno l'elenco di Spamhaus Lasso.
 	# Onoro --iptables e --keep
+	import urllib
 
 	while True:
 		print "Update:",str(datetime.datetime.now())
@@ -388,7 +391,6 @@ def Clean_ip():
 	# Passo in rassegna gli IP in IP->Fucklog->MySQL e levo quelli gia' in CIDR
 
 	db = connetto_db()
-
 	db.execute("select IP from IP order by IP")
 	for row in db.fetchall():
 		IP = netaddr.IPAddress(row[0])
@@ -405,6 +407,7 @@ def is_already_mapped(IP,reset_cache=False,torna_la_cidr=False):
 	global Cached_CIDRs
 
 	if Cached_CIDRs is None or reset_cache is True:
+		lock_cached_cidrs.acquire()
 		# inizializzo il dizionario
 		Cached_CIDRs = {}
 		for n in xrange(256):
@@ -423,6 +426,7 @@ def is_already_mapped(IP,reset_cache=False,torna_la_cidr=False):
 				Cached_CIDRs[A] = netaddr.cidr_merge(Cached_CIDRs[A])
 				#print "Differenza",inizio-len(Cached_CIDRs[A])
 		db.close()
+		lock_cached_cidrs.release()
 
 	ip = netaddr.IPAddress(str(IP).strip())
 	ClasseA = str(IP).split('.')[0]
@@ -434,7 +438,6 @@ def is_already_mapped(IP,reset_cache=False,torna_la_cidr=False):
 				return str(netaddr.ip.all_matching_cidrs(ip,[CIDR,])[0])
 			else:
 				return True
-
 	return False
 
 def ip_to_dns(IP, without_numbers=True):
@@ -557,6 +560,8 @@ Opzioni:
 		sys.exit(-1)
 
 if __name__ == "__main__":
+	import getopt
+	
 	try:
 		opts, args = getopt.getopt(sys.argv[1:], "cfghiklnpstxyz", ["cristini","scanner","geoloc-update","help","iptables-update","keepalive","lasso-update","clusterptr","pbl-in-iptables","size-cidr","totali","cidr_db_size","pbl-queue","clean-ip"])
 	except getopt.GetoptError:
