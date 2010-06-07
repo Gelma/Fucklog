@@ -134,6 +134,27 @@ def iptables_to_nat():
 			time.sleep(3600)
 	
 # funzioni richiamabili da riga di comando
+def nmap_fingerprint(IP):
+	# dato un IP, me lo spupazzo con nmap per trovare l'OS fingerprint
+	# ritorno le righe significative di testo di nmap
+
+	import os, netaddr
+	
+	client_da_usare      = '/opt/nmap/bin/nmap '                # ocio al blank finale
+	argomenti_del_client = '-O --osscan-limit -F --fuzzy ' # ocio al blank finale
+	responso = []
+	
+	# validazione IP	
+	try:
+		IP=netaddr.IPAddress(IP)
+	except:
+		return False
+	
+	for line in os.popen(client_da_usare+argomenti_del_client+str(IP)):
+		if line.startswith( ('Running', 'Aggressive', 'Device', 'OS deta') ):
+			responso.append(line)
+	return ''.join(responso)
+	
 def Cristini():
 	# leggo il file di Necro
 
