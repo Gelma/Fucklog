@@ -165,7 +165,7 @@ def update_OS_worker(IP,date_from_db):
 	import time
 	
 	db = connetto_db()
-	print IP,"inizio"
+	print IP
 	
 	os_finger = nmap_fingerprint(IP)
 	if not os_finger:
@@ -186,7 +186,7 @@ def Update_OS():
 	
 	import time, threading
 	
-	Ip_in_parallelo = 10
+	Ip_in_parallelo = 30
 	db = connetto_db()
 	
 	while True:
@@ -208,7 +208,7 @@ def Update_OS():
 				pass
 		
 		print "Mi puoi killare"
-		time.sleep(30)
+		time.sleep(60)
 
 	db.close()
 
