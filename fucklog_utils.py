@@ -133,15 +133,14 @@ def iptables_to_nat():
 		else:
 			time.sleep(3600)
 	
-# funzioni richiamabili da riga di comando
 def nmap_fingerprint(IP):
 	# dato un IP, me lo spupazzo con nmap per trovare l'OS fingerprint
 	# ritorno le righe significative di testo di nmap
 
 	import os, netaddr
 	
-	client_da_usare      = '/opt/nmap/bin/nmap '                # ocio al blank finale
-	argomenti_del_client = '-O --osscan-limit -F --fuzzy ' # ocio al blank finale
+	client_da_usare      = '/opt/nmap/bin/nmap '			# ocio al blank finale
+	argomenti_del_client = '-O --osscan-limit -F --fuzzy '	# ocio al blank finale
 	responso = []
 	
 	# validazione IP	
@@ -153,8 +152,66 @@ def nmap_fingerprint(IP):
 	for line in os.popen(client_da_usare+argomenti_del_client+str(IP)):
 		if line.startswith( ('Running', 'Aggressive', 'Device', 'OS deta') ):
 			responso.append(line)
-	return ''.join(responso)
+
+	if len(responso):
+		return ''.join(responso)
+	else:
+		return None
+
+def update_OS_worker(IP,date_from_db):
+	# ricevo un IP, lo nmappo metto i dati in OS->IP->FUCKLOG->MYSQL
+	# date_from_db è data e ora dell'update dell'IP. Lo re-inserisco per non perdere l'informazione con l'inserimento del testo nmap
 	
+	import time
+	
+	db = connetto_db()
+	print IP,"inizio"
+	
+	os_finger = nmap_fingerprint(IP)
+	if not os_finger:
+		os_finger = 'N/A'
+
+	try:
+		db.execute("UPDATE IP set OS=%s, DATE=%s where IP=INET_ATON(%s)", (os_finger, date_from_db, IP))
+	except:
+		print IP,"fallito update db"
+	
+	db.close()
+
+# funzioni richiamabili da riga di comando
+
+def Update_OS():
+	# aggiorno OS->IP->FUCKLOG->MYSQL
+	# prendo gli IP piu' recenti, sfrutto nmap, cerco di individuarne il Sistema Operativo
+	
+	import time, threading
+	
+	Ip_in_parallelo = 10
+	db = connetto_db()
+	
+	while True:
+		coda_threads = []
+		db.execute("select INET_NTOA(IP), DATE from IP where OS is NULL order by DATE desc limit "+str(Ip_in_parallelo))
+		for row in db.fetchall():
+			try:
+				IP = netaddr.IPAddress(row[0])
+			except:
+				continue
+			coda_threads.append( threading.Thread(None,update_OS_worker,None,(IP, row[1])) )
+			coda_threads[-1].start()
+		
+		# attendo l'uscita di ogni thread
+		for threddone in coda_threads:
+			try: # potrei avere un eccezione nel caso terminasse il thread prima del join
+				threddone.join()
+			except:
+				pass
+		
+		print "Mi puoi killare"
+		time.sleep(30)
+
+	db.close()
+
 def Cristini():
 	# leggo il file di Necro
 
