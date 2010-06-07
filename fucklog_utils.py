@@ -6,12 +6,13 @@
 import netaddr, os, sys, socket, time, datetime, re, thread
 
 if True:
-	# Dati costanti per MysqlDB
+	# Dati costanti
+	# MysqlDB
 	mysql_host, mysql_user, mysql_passwd, mysql_db = "localhost", "fucklog", "pattinaggio", "fucklog"
-	# Dati costanti per GeoIP
+	# GeoIP
 	geoip_db_file = "/opt/GeoIP/GeoLiteCity.dat"
 	geoip_db = False
-	# Dati costanti per flag
+	# Flags opzioni
 	azione = None
 	Genera_Iptables = None
 	KeepAlive = False
@@ -43,7 +44,6 @@ def compatta_cbl():
 		cidr = netaddr.cidr_merge(cidr)
 		print cidr
 		elencone = elencone[10000:]
-
 
 def geoip_from_ip(IP):
 	# ricevo un IP, torno la nazione o None
@@ -184,8 +184,8 @@ def Cidr_db_size():
 			time.sleep(3600)
 
 def Geoloc_update():
-	# Aggiorno GEOIP->IP->FUCKLOG->MYSQL
-	# Se KeepAlive ripeto ogni ora
+	# Aggiorno le tuple Null in GEOIP->IP->FUCKLOG->MYSQL
+	# onoro KeepAlive
 
 	while True:
 		db = connetto_db()
@@ -205,7 +205,7 @@ def Geoloc_update():
 			time.sleep(3600)
 
 def Pbl_in_iptables():
-	# Scanno gli IP in Iptables e torno i link a PBL (i primi 10)
+	# Scanno gli IP in Iptables e torno i link a PBL (i primi 20)
 
 	counter = 0
 	for chain in os.popen('/sbin/iptables -L -n|grep -i fucklog|tac'):
@@ -345,7 +345,7 @@ def Lasso_update():
 
 def UCE_update():
 	# Invocato, scarico e aggiorno l'elenco di UCE.
-	# Onoro --keep
+	# Onoro KeepAlive
 
 	while True:
 		print "UCE update:",str(datetime.datetime.now())

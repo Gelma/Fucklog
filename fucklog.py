@@ -31,7 +31,7 @@ def logit(text):
 	lock_output_log_file.release()
 
 def update_stats():
-	global today_ip_blocked,  all_ip_blocked
+	global today_ip_blocked, all_ip_blocked
 
 	lock_stats_update.acquire()
 	file_mrtg_stats.seek(0)
@@ -90,6 +90,7 @@ def mrproper(Id):
 		today_ip_blocked = 0
 		rm_old_iptables_chains()
 		fucklog_utils.is_already_mapped('127.0.0.1',reset_cache=True) # Barbatrucco per forzare il flush della cache delle CIDR
+		fucklog_utils.geoip_db = False # Barbatrucco per forzare il refresh del DB di geolocalizzazione
 		# elimino tutti gli IP che non si sono ripresentati negli ultimi 6 mesi
 		db = fucklog_utils.connetto_db()
 		db.execute('delete from IP where DATE < (CURRENT_TIMESTAMP() - INTERVAL 6 MONTH)')
