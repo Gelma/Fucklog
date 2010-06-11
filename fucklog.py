@@ -190,3 +190,6 @@ if __name__ == "__main__":
 			logit("Stats: "+str(today_ip_blocked)+"/"+str(all_ip_blocked)+'-'+str(len(list_of_iptables_chains)))
 			print "   Today IP / all IP blocked:", today_ip_blocked, "/",  all_ip_blocked,  ". Chains: ", len(list_of_iptables_chains)
 			print "   cached_ips size:",len(cached_ips)
+		if command == "f":
+			fucklog_utils.is_already_mapped('127.0.0.1',reset_cache=True)
+			print "Forzata rilettura della tabella di CIDR"
