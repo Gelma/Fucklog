@@ -139,7 +139,7 @@ def nmap_fingerprint(IP):
 
 	import os, netaddr
 	
-	client_da_usare      = '/opt/nmap/bin/nmap '			# ocio al blank finale
+	client_da_usare      = 'nice -n20 /opt/nmap/bin/nmap '			# ocio al blank finale
 	argomenti_del_client = '-O --osscan-limit -F --fuzzy '	# ocio al blank finale
 	responso = []
 	
