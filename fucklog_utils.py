@@ -90,6 +90,7 @@ def is_pbl(IP):
 	# torno il link diversamente
 
 	import dns.resolver, dns.reversename
+	IP = str(IP)
 	
 	qstr = "%s.pbl.spamhaus.org." % reverse_ip(IP)
 	try:
@@ -102,7 +103,7 @@ def is_pbl(IP):
 
 def iptables_to_nat():
 	# prendo tutti gli IP bloccati da fucklog e li metto nel nat per la redirezione della 25 verso la 25000
-	# smtp-sink -4 -c -d "%Y%m%d%H%M." -u check -R /home/gelma.net/check/SpoolSpam/new/ -h lugbs.linux.it 25000 512
+	# smtp-sink -4 -c -d "%Y%m%d%H%M." -u check -R /home/gelma.net/check/SpoolSpam/new/ -h li61-168.members.linode.com. 25000 512
 	# iptables -t nat -F
 
 	file_per_iptables = "/tmp/.fucklog_iptables_restore"
@@ -180,6 +181,33 @@ def update_OS_worker(IP,date_from_db):
 
 # funzioni richiamabili da riga di comando
 
+def Check_PBL_expire():
+	# testo ogni CIDR del tipo PBL per vedere se è ancora attiva
+	# diversamente mi invio una segnalazione
+	
+	import netaddr, random, time
+	
+	dadi = random.SystemRandom()
+	pausa_tra_le_query = 39 # numero di secondi tra un query e l'altra. in questo modo sono poco più di 2100 query al giorno
+
+	while True:
+		db = connetto_db()
+		db.execute("select CIDR from CIDR where CATEGORY='pbl' order by RAND()")
+		elenco_cidr = db.fetchall()
+		db.close()
+	
+		for CIDR in elenco_cidr:
+			CIDR = netaddr.IPNetwork(CIDR[0])
+			ip_to_test = CIDR[dadi.randint(0, CIDR.size - 1)]
+			if not is_pbl(ip_to_test):
+				print "---->Drama",CIDR
+				db = connetto_db()
+				db.execute("delete from CIDR where CIDR=%s", (str(CIDR),))
+				db.close()
+			else:
+				print "OK:",CIDR
+			time.sleep(pausa_tra_le_query)
+
 def Update_OS():
 	# aggiorno OS->IP->FUCKLOG->MYSQL
 	# prendo gli IP piu' recenti, sfrutto nmap, cerco di individuarne il Sistema Operativo
@@ -208,7 +236,7 @@ def Update_OS():
 				pass
 		
 		print "Mi puoi killare"
-		time.sleep(60)
+		time.sleep(1800)
 
 	db.close()
 
