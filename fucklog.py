@@ -145,7 +145,10 @@ def parse_log(Id):
 							aggiungi_log  = 'CIDR'
 							#	e se è un IP PBL non noto, lo metto in coda di soluzione via form web
 						elif fucklog_utils.is_pbl(IP):
-							db.execute("insert into PBLURL (URL) values (%s)", (IP,))
+							try:
+								db.execute("insert into PBLURL (URL) values (%s)", (IP,))
+							except:
+								pass
 							aggiungi_log  = 'qPBL'
 						# inserimento in IPTables
 						if Cidr_To_Block: # se ho la CIDR
