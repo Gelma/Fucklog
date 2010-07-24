@@ -2,27 +2,34 @@
 # -*- coding: utf-8 -*-
 import datetime, os, re, shelve, sys, thread, time, fucklog_utils
 
-if True: # Global vars
-	postfix_log_file = "/var/log/everything/current"
-
-	# vars
+if True:
+	# Global vars
 	cached_ips = {}
 	interval = 10 # minutes
 	RegExps = [] # list of regular expressions to apply
 	RegExps.append(re.compile('.*RCPT from (.*)\[(.*)\]:.*blocked using.*from=<(.*)> to=<(.*)> proto')) # blacklist
 	RegExps.append(re.compile('.*NOQUEUE: reject: RCPT from (.*)\[(.*)\].*Helo command rejected: need fully-qualified hostname; from=<(.*)> to=<(.*)> proto')) # broken helo
 	list_of_iptables_chains = {}
+	file_checkpoint_rules = '/var/backups/fucklog_iptables_rules'
+	postfix_log_file = "/var/log/everything/current"
 	# Statistics
 	today_ip_blocked = all_ip_blocked = 0
 	# Locks
 	lock_output_log_file = thread.allocate_lock()
 	lock_stats_update = thread.allocate_lock()
+	lock_create_checkpoint = thread.allocate_lock()
 	# Logfile
 	output_log_file = '/tmp/.fucklog_log_file.txt'
 	log_file = open(output_log_file,'a')
 	# MRTG files
 	file_mrtg_stats = open("/tmp/.fucklog_mrtg", 'w')
 
+def create_checkpoint_rules():
+	lock_create_checkpoint.acquire()
+	os.system('/sbin/iptables -L -n > '+file_checkpoint_rules+'.new')
+	os.rename(file_checkpoint_rules+'.new', file_checkpoint_rules)
+	lock_create_checkpoint.release()
+	
 def logit(text):
 	lock_output_log_file.acquire()
 	now = datetime.datetime.now()
@@ -64,9 +71,12 @@ def rm_old_iptables_chains():
 							try:
 								del cached_ips[ cached_ips[ip_to_remove] ]
 							except:
-								logit("CleanIptables: exception nella rimozione di "+cached_ips[ip_to_remove])
+								logit("CleanIptables: forse IP doppio "+cached_ips[ip_to_remove])
 						# ora posso eliminare l'IP principale
-						del cached_ips[ip_to_remove]
+						try:
+							del cached_ips[ip_to_remove]
+						except:
+							logit("CleanIptables: forse IP doppio "+ip_to_remove)
 						all_ip_blocked -= 1
 						logit("CleanIptables: l'IP è stato rimosso "+ ip_to_remove)
 			# remove the chain
@@ -171,13 +181,12 @@ def parse_log(Id):
 
 if __name__ == "__main__":
 	# Todo list:
-	# persistenza iptables
 	# ricerca CIDR in tempo reale
 	# partenza dei servizi in automatico
 	# controllo per unica istanza in esecuzione
 	# dump degli IP cachati
 	
-	# Resume list of iptables-chains and delete the old ones
+	# Resume list of iptables chains/rules and delete the old ones
 	for line in os.popen("/sbin/iptables -L -n|/bin/grep 'Chain fucklog'"):
 		chain_name = line.split()[1]
 		for line in os.popen("/sbin/iptables -n -L "+chain_name):
@@ -185,6 +194,25 @@ if __name__ == "__main__":
 				cached_ips[ line.split()[3] ] = None
 				all_ip_blocked += 1
 		list_of_iptables_chains[chain_name] = None
+	
+	if os.path.isfile(file_checkpoint_rules):
+		regexp = re.compile('^DROP       tcp  --  (.*) .* 0.0.0.0/0           tcp dpt:25 TIME until date (.*) 23:59:59')
+		with open(file_checkpoint_rules, 'r') as filetoparse:
+			for line in filetoparse:
+				m = regexp.match(line)
+				if m:
+					recover_ip, recover_chain, termine = m.group(1).strip(), 'fucklog-'+m.group(2), m.group(2)
+					if cached_ips.has_key(recover_ip): # controllo se gia' mappato IP
+						continue
+					else:
+						if not list_of_iptables_chains.has_key(recover_chain): # controllo che esista la chain
+							os.system("/sbin/iptables -N '"+recover_chain+"'")
+							list_of_iptables_chains[recover_chain] = None
+						os.system("/sbin/iptables -A '"+recover_chain+"' -s "+recover_ip+" --protocol tcp --dport 25 -m time --datestop "+termine+"T23:59:59 -j DROP")
+						cached_ips[ recover_ip ] = None
+						all_ip_blocked += 1
+		del regexp, recover_ip, recover_chain, termine
+	create_checkpoint_rules()	
 	rm_old_iptables_chains()
 
 	thread.start_new_thread(parse_log,  (1, ))
@@ -194,6 +222,7 @@ if __name__ == "__main__":
 		command = raw_input("What's up:")
 		if command == "q":
 			logit("Main: clean shutdown")
+			create_checkpoint_rules()
 			sys.exit()
 		if command == "s":
 			logit("Stats: "+str(today_ip_blocked)+"/"+str(all_ip_blocked)+'-'+str(len(list_of_iptables_chains)))
@@ -202,3 +231,6 @@ if __name__ == "__main__":
 		if command == "f":
 			fucklog_utils.is_already_mapped('127.0.0.1',reset_cache=True)
 			print "Forzata rilettura della tabella di CIDR"
+		if command == "c":
+			create_checkpoint_rules()
+			print "Checkpoint rules creato"
