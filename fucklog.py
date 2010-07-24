@@ -49,27 +49,26 @@ def rm_old_iptables_chains():
 	my_today = 'fucklog-'+str(datetime.date.today())
 	for chain_name in list_of_iptables_chains.keys():
 		if (chain_name < my_today):
-			logit("Proper: parso la chain: "+chain_name)
+			logit("CleanIptables: parso la chain: "+chain_name)
 			# select and delete every chain's IP
 			for chain_ip in os.popen('/sbin/iptables -L '+chain_name+' -n'):
 				if chain_ip.startswith("DROP"):
 					ip_to_remove = chain_ip.split()[3]
-					logit("Proper: leggo l'IP "+ip_to_remove)
+					logit("CleanIptables: leggo l'IP " + ip_to_remove)
 					# se l'IP è presente nella cache
 					if cached_ips.has_key(ip_to_remove):
-						logit("Proper: l'IP è in cached_ips "+ip_to_remove)
+						logit("CleanIptables: l'IP è in cached_ips "+ip_to_remove)
 						# elimino prima un eventuale valore (CIDR) associato
 						if cached_ips[ip_to_remove]:
-							logit("Parse: alla chiave IP è associato un valore "+cached_ips[ip_to_remove])
+							logit("CleanIptables: alla chiave IP è associato un valore "+cached_ips[ip_to_remove])
 							try:
 								del cached_ips[ cached_ips[ip_to_remove] ]
 							except:
-								logit("Parse: exception nella rimozione di "+cached_ips[ip_to_remove])
-								pass
-						# e in fine l'IP principale
+								logit("CleanIptables: exception nella rimozione di "+cached_ips[ip_to_remove])
+						# ora posso eliminare l'IP principale
 						del cached_ips[ip_to_remove]
 						all_ip_blocked -= 1
-						logit("Proper: l'IP è stato rimosso "+ ip_to_remove)
+						logit("CleanIptables: l'IP è stato rimosso "+ ip_to_remove)
 			# remove the chain
 			for flag in ['F', 'X']: # chain flush and remove
 				os.system("/sbin/iptables -"+flag+" "+chain_name)
@@ -171,8 +170,15 @@ def parse_log(Id):
 		time.sleep(60*interval)
 
 if __name__ == "__main__":
-	# Resume list of iptables chains and delete the old ones
-	for line in os.popen("/sbin/iptables -L -n|grep  'Chain fucklog'"):
+	# Todo list:
+	# persistenza iptables
+	# ricerca CIDR in tempo reale
+	# partenza dei servizi in automatico
+	# controllo per unica istanza in esecuzione
+	# dump degli IP cachati
+	
+	# Resume list of iptables-chains and delete the old ones
+	for line in os.popen("/sbin/iptables -L -n|/bin/grep 'Chain fucklog'"):
 		chain_name = line.split()[1]
 		for line in os.popen("/sbin/iptables -n -L "+chain_name):
 			if line.startswith('DROP'):
@@ -182,7 +188,7 @@ if __name__ == "__main__":
 	rm_old_iptables_chains()
 
 	thread.start_new_thread(parse_log,  (1, ))
-	thread.start_new_thread(mrproper,   (1, ))
+	thread.start_new_thread(mrproper,   (2, ))
 
 	while True:
 		command = raw_input("What's up:")
