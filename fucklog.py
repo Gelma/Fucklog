@@ -158,6 +158,7 @@ def parse_log(Id):
 								db.execute("insert into PBLURL (URL) values (%s)", (IP,))
 							except:
 								pass
+							os.system("echo 'http://mail.gelma.net/pbl_check.php'|mail -s 'cekka "+IP+"' andrea.gelmini@gmail.com")
 							aggiungi_log  = 'qPBL'
 						# inserimento in IPTables
 						if Cidr_To_Block: # se ho la CIDR
