@@ -139,8 +139,8 @@ def parse_log(Id):
 							os.system("/sbin/iptables -N 'fucklog-"+until_date+"'")
 							list_of_iptables_chains["fucklog-"+until_date] = None
 						# se si tratta di un IP con CIDR nota, leggo la CIDR
-						if fucklog_utils.is_already_mapped(IP):
-							Cidr_To_Block = fucklog_utils.is_already_mapped(IP,torna_la_cidr=True)
+						Cidr_To_Block = fucklog_utils.is_already_mapped(IP)
+						if Cidr_To_Block:
 							aggiungi_log  = 'CIDR'
 							#	e se è un IP PBL non noto, lo metto in coda di soluzione via form web
 						elif fucklog_utils.is_pbl(IP):

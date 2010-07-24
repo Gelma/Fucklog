@@ -513,11 +513,10 @@ def Clean_ip():
 			print "Elimino: ",IP
 			db.execute("delete from IP where IP=%s",(int(IP),))
 
-def is_already_mapped(IP,reset_cache=False,torna_la_cidr=False):
+def is_already_mapped(IP,reset_cache=False):
 	# prendo un IP, lo confronto con il DB, ritorno vero se conosciuto
 	# utilizzo cached_cidr a livello globale
 	# reset_cache = forza il flush della cache
-	# torna_la_cidr = ritorna la classe invece del semplice True
 
 	global Cached_CIDRs
 
@@ -549,10 +548,7 @@ def is_already_mapped(IP,reset_cache=False,torna_la_cidr=False):
 
 	for CIDR in Cached_CIDRs[ClasseA] + Cached_CIDRs[ClassePrecedente]:
 		if netaddr.ip.all_matching_cidrs(ip,[CIDR,]):
-			if torna_la_cidr:
-				return str(netaddr.ip.all_matching_cidrs(ip,[CIDR,])[0])
-			else:
-				return True
+			return str(netaddr.ip.all_matching_cidrs(ip,[CIDR,])[0])
 	return False
 
 def ip_to_dns(IP, without_numbers=True):
