@@ -29,7 +29,12 @@ def create_checkpoint_rules():
 	os.system('/sbin/iptables -L -n > '+file_checkpoint_rules+'.new')
 	os.rename(file_checkpoint_rules+'.new', file_checkpoint_rules)
 	lock_create_checkpoint.release()
-	
+
+def checkpoint_daemon(Id):
+	while True:
+		time.sleep(3600)
+		create_checkpoint_rules()
+
 def logit(text):
 	lock_output_log_file.acquire()
 	now = datetime.datetime.now()
@@ -212,12 +217,17 @@ if __name__ == "__main__":
 						os.system("/sbin/iptables -A '"+recover_chain+"' -s "+recover_ip+" --protocol tcp --dport 25 -m time --datestop "+termine+"T23:59:59 -j DROP")
 						cached_ips[ recover_ip ] = None
 						all_ip_blocked += 1
+	try:
 		del regexp, recover_ip, recover_chain, termine
-	create_checkpoint_rules()	
-	rm_old_iptables_chains()
+	except:
+		pass
 
-	thread.start_new_thread(parse_log,  (1, ))
-	thread.start_new_thread(mrproper,   (2, ))
+	rm_old_iptables_chains()
+	create_checkpoint_rules()	
+
+	thread.start_new_thread(parse_log,					(1, ))
+	thread.start_new_thread(mrproper,					(2, ))
+	thread.start_new_thread(checkpoint_daemon,			(3, ))
 
 	while True:
 		command = raw_input("What's up:")
@@ -235,3 +245,11 @@ if __name__ == "__main__":
 		if command == "c":
 			create_checkpoint_rules()
 			print "Checkpoint rules creato"
+		if command == "d":
+			out = open('/tmp/fucklog_debug','w')
+			for item in cached_ips.keys():
+				if cached_ips[item]:
+					out.write(item,cached_ips[item]+'\n')
+				else:
+					out.write(item+'\n')
+			out.close()
