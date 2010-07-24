@@ -188,25 +188,33 @@ def Check_PBL_expire():
 	import netaddr, random, time
 	
 	dadi = random.SystemRandom()
-	pausa_tra_le_query = 39 # numero di secondi tra un query e l'altra. in questo modo sono poco più di 2100 query al giorno
-
-	while True:
-		db = connetto_db()
-		db.execute("select CIDR from CIDR where CATEGORY='pbl' order by RAND()")
-		elenco_cidr = db.fetchall()
-		db.close()
+	pausa_tra_le_query = 23 # numero di secondi tra un query e l'altra. in questo modo sono poco più di 3700 query al giorno
 	
+	db = connetto_db()
+	controllate = tenute = cancellate = 0
+	
+	while True:
+		db.execute("select CIDR from CIDR  where CATEGORY='pbl' and LASTUPDATE < (CURRENT_TIMESTAMP() - INTERVAL 2 MONTH) order by RAND() LIMIT 1000")
+		elenco_cidr = db.fetchall()
+		if not elenco_cidr:
+			print "dormo un giorno"
+			time.sleep(86400)
 		for CIDR in elenco_cidr:
+			controllate = controllate + 1
 			CIDR = netaddr.IPNetwork(CIDR[0])
+			print CIDR,
 			ip_to_test = CIDR[dadi.randint(0, CIDR.size - 1)]
 			if not is_pbl(ip_to_test):
-				print "---->Drama",CIDR
-				db = connetto_db()
+				cancellate = cancellate + 1
+				print "sego",
 				db.execute("delete from CIDR where CIDR=%s", (str(CIDR),))
-				db.close()
 			else:
-				print "OK:",CIDR
+				tenute = tenute + 1
+				print "tengo",
+				db.execute("update CIDR set LASTUPDATE=CURRENT_TIMESTAMP where CIDR=%s", (str(CIDR),))
+			print controllate,tenute,cancellate
 			time.sleep(pausa_tra_le_query)
+
 
 def Update_OS():
 	# aggiorno OS->IP->FUCKLOG->MYSQL
