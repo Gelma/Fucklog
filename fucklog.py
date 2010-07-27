@@ -87,6 +87,38 @@ def aggiorna_uce(Id):
 		
 		db.close()
 
+def aggiorna_pbl_expire(Id):
+	"""Controllo tutte le CIDR PBL più vecchie di due mesi, ed eventualmente le sego (Cidr->Fucklog->MySQL)"""
+
+	import random
+	
+	dadi = random.SystemRandom()
+	pausa_tra_le_query = 23 # numero di secondi tra un query e l'altra. in questo modo sono poco più di 3700 query al giorno
+		
+	while True:
+		logit('PBL Expire: inizio')
+		controllate = cancellate = 0
+		db = fucklog_utils.connetto_db()
+		db.execute("select CIDR from CIDR  where CATEGORY='pbl' and LASTUPDATE < (CURRENT_TIMESTAMP() - INTERVAL 2 MONTH) order by RAND()")
+		elenco_cidr = db.fetchall()
+		if not elenco_cidr:
+			logit('PBL Expire: nessuna voce da controllare. Riprovo tra 24 ore')
+			db.close()
+			time.sleep(86400)
+		else:
+			for CIDR in elenco_cidr: # per ogni CIDR
+				logit('PBL Expire: controllo '+CIDR[0])
+				controllate = controllate + 1 # incremento il numero di voci controllat
+				CIDR = netaddr.IPNetwork(CIDR[0])
+				ip_to_test = CIDR[dadi.randint(0, CIDR.size - 1)] # estraggo un IP a caso della CIDR
+				if not fucklog_utils.is_pbl(ip_to_test): # se non risulta più in PBL
+					cancellate = cancellate + 1 # incremento le voci cancellate
+					logit('PBL Expire: elimino '+str(CIDR)+' - controllate: '+controllate+' - cancellate: '+cancellate)
+					db.execute("delete from CIDR where CIDR=%s", (CIDR,))
+				else:
+					db.execute("update CIDR set LASTUPDATE=CURRENT_TIMESTAMP where CIDR=%s", (CIDR,))
+				time.sleep(pausa_tra_le_query)
+
 def logit(text):
 	lock_output_log_file.acquire()
 	now = datetime.datetime.now()
@@ -238,9 +270,9 @@ if __name__ == "__main__":
 	
 	#thread.start_new_thread(parse_log,					(1, ))
 	#thread.start_new_thread(mrproper,					(2, ))
-	thread.start_new_thread(aggiorna_lasso,				(3, ))
-	thread.start_new_thread(aggiorna_uce,				(4, ))
-
+	#thread.start_new_thread(aggiorna_lasso,				(3, ))
+	#thread.start_new_thread(aggiorna_uce,				(4, ))
+	thread.start_new_thread(aggiorna_pbl_expire,		(5, ))
 
 	while True:
 		command = raw_input("What's up:")
