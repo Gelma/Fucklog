@@ -113,7 +113,7 @@ def aggiorna_pbl_expire(Id):
 				ip_to_test = CIDR[dadi.randint(0, CIDR.size - 1)] # estraggo un IP a caso della CIDR
 				if not fucklog_utils.is_pbl(ip_to_test): # se non risulta più in PBL
 					cancellate = cancellate + 1 # incremento le voci cancellate
-					logit('PBL Expire: elimino '+str(CIDR)+' - controllate: '+controllate+' - cancellate: '+cancellate)
+					logit('PBL Expire: elimino '+str(CIDR)+' - controllate: '+str(controllate)+' - cancellate: '+str(cancellate))
 					db.execute("delete from CIDR where CIDR=%s", (CIDR,))
 				else:
 					db.execute("update CIDR set LASTUPDATE=CURRENT_TIMESTAMP where CIDR=%s", (CIDR,))
@@ -272,7 +272,7 @@ if __name__ == "__main__":
 	#thread.start_new_thread(mrproper,					(2, ))
 	#thread.start_new_thread(aggiorna_lasso,				(3, ))
 	#thread.start_new_thread(aggiorna_uce,				(4, ))
-	thread.start_new_thread(aggiorna_pbl_expire,		(5, ))
+	#thread.start_new_thread(aggiorna_pbl_expire,		(5, ))
 
 	while True:
 		command = raw_input("What's up:")
