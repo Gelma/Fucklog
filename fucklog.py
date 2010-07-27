@@ -137,7 +137,7 @@ def aggiorna_pbl(id):
 				db.execute("delete from PBLURL where URL=%s",(IP,))
 				continue
 			try:
-				tmp = netaddr.IPNetwork(CIDR)
+				CIDR = netaddr.IPNetwork(CIDR)
 			except:
 				logit("WebPBL: CIDR non valida "+CIDR)
 				db.execute("delete from PBLURL where URL=%s",(IP,))
@@ -153,10 +153,10 @@ def aggiorna_pbl(id):
 				continue
 
 			try: # tutto ok, quindi inserisco
-				db.execute("insert into CIDR(CIDR, SIZE, CATEGORY) values (%s,%s,'pbl')", (CIDR, CIDR.size))
+				db.execute("insert into CIDR (CIDR, SIZE, CATEGORY) values (%s,%s,'pbl')", (CIDR, CIDR.size))
 			except:
 				logit("WebPBL: fallito inserimento "+CIDR)
-				db.execute("delete from PBLURL where URL=%s",(IP,))
+			db.execute("delete from PBLURL where URL=%s",(IP,))
 
 		# ripeto il controllo su tutti gli IP rimasti
 		db.execute("select URL from PBLURL where CIDR is null")
