@@ -343,22 +343,8 @@ def Pbl_queue():
 	Cached_CIDRs = None # Azzero la cache delle CIDRs
 
 	db = connetto_db()
-	regexp = re.compile('.*blocked using pbl.spamhaus.org;.*bl\?ip=(.*);')
-	grep_command = "/bin/grep --mmap pbl.spamhaus.org /var/log/everything/current"
 
 	while True:
-		# prendo i pbl dai log e li porto in tabella
-		for log_line in os.popen(grep_command):
-			m = regexp.match(log_line) # match for regexp
-			if m: # if it matches
-				ip = m.group(1)
-				if not is_already_mapped(ip):
-					try:
-						db.execute("insert into PBLURL (URL) values (%s)", (ip,))
-						print "Metto in coda web:",ip
-					except:
-						pass
-
 		# prendo le CIDR inserite via web e le vaglio
 		db.execute("select URL, CIDR from PBLURL where CIDR is NOT null")
 		for row in db.fetchall():
@@ -416,46 +402,13 @@ def Pbl_queue():
 				print "Gia' mappato (tutti)",IP
 				db.execute("delete from PBLURL where URL=%s",(IP,))
 
-		if Genera_Iptables:
-			print "Genero Iptables"
-			get_cidr('pbl')
-
 		# controllo il ciclo
 		if KeepAlive is False:
 			break
 		else:
 			time.sleep(3600)
 
-def Lasso_update():
-	# Invocato, scarico e aggiorno l'elenco di Spamhaus Lasso.
-	# Onoro --iptables e --keep
-	import urllib
 
-	while True:
-		print "Update:",str(datetime.datetime.now())
-		try:
-			lassofile = urllib.urlopen("http://www.spamhaus.org/drop/drop.lasso")
-		except:
-			logga("Lasso update: fallita lettura URL")
-			time.sleep(86400)
-			continue
-
-		db = connetto_db()
-		db.execute("delete from CIDR where CATEGORY='lasso'")
-
-		for line in lassofile:
-			if line.startswith(';'):
-				continue
-			cidr, note = line[:-1].split(';')
-			db.execute("insert into CIDR(CIDR, SIZE, NAME, CATEGORY) values (%s,%s,%s,'lasso')", (cidr.strip(), Size_cidr(cidr), note.strip()))
-
-		if Genera_Iptables:
-			get_cidr('lasso')
-
-		if KeepAlive is False:
-			break
-		else:
-			time.sleep(129600) # aggiorna dopo 36 ore
 
 def UCE_update():
 	# Invocato, scarico e aggiorno l'elenco di UCE.
@@ -514,7 +467,7 @@ def Clean_ip():
 			db.execute("delete from IP where IP=%s",(int(IP),))
 
 def is_already_mapped(IP,reset_cache=False):
-	# prendo un IP, lo confronto con il DB, ritorno vero se conosciuto
+	# prendo un IP, lo confronto con il DB, ritorno la CIDR se ricade nella mappatura relativa
 	# utilizzo cached_cidr a livello globale
 	# reset_cache = forza il flush della cache
 
@@ -659,7 +612,6 @@ Opzioni:
 	-h --help            *Help
 	-i --iptables-update (flag) Genera regole per iptables (onora -d -l)
 	-k --keepalive       (flag) Imposta la ripetizione perpetua della funzione
-	-l --lasso-update    Aggiorna la lista Lasso di Spamhaus (onora -i -k)
 	-n --clusterptr      *Scova IP senza ptr
 	-p --pbl-in-iptables Torna le PBL attive presenti negli IP bloccati da iptables
 	-s --size_cidr       Torna il numero di IP che compongono una CIDR
@@ -674,7 +626,7 @@ if __name__ == "__main__":
 	import getopt
 	
 	try:
-		opts, args = getopt.getopt(sys.argv[1:], "cfghiklnpstxyz", ["cristini","scanner","geoloc-update","help","iptables-update","keepalive","lasso-update","clusterptr","pbl-in-iptables","size-cidr","totali","cidr_db_size","pbl-queue","clean-ip"])
+		opts, args = getopt.getopt(sys.argv[1:], "cfghiknpstxyz", ["cristini","scanner","geoloc-update","help","iptables-update","keepalive","clusterptr","pbl-in-iptables","size-cidr","totali","cidr_db_size","pbl-queue","clean-ip"])
 	except getopt.GetoptError:
 		logga('Main: opzioni non valide: '+sys.argv[1:],'exit')
 
@@ -689,8 +641,6 @@ if __name__ == "__main__":
 			Genera_Iptables = 1
 		elif opt in ("-k", "--keepalive"):
 			KeepAlive = True
-		elif opt in ('-l', '--lasso-update'):
-			azione = 'lasso-update'
 		elif opt in ('-p', '--pbl-in-iptables'):
 			azione = 'pbl-in-iptables'
 		elif opt in ('-s', '--size-cidr'):
@@ -718,8 +668,6 @@ if __name__ == "__main__":
 		Cidr_db_size()
 	elif azione == "geoloc-update":
 		Geoloc_update()
-	elif azione == "lasso-update":
-		Lasso_update()
 	elif azione == "pbl-in-iptables":
 		Pbl_in_iptables()
 	elif azione == "size-cidr":

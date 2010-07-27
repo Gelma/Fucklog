@@ -4,36 +4,55 @@ import datetime, os, re, shelve, sys, thread, time, fucklog_utils
 
 if True:
 	# Global vars
-	cached_ips = {}
+	cached_ips = {} # a breve dovrebbe sparire
 	interval = 10 # minutes
 	RegExps = [] # list of regular expressions to apply
 	RegExps.append(re.compile('.*RCPT from (.*)\[(.*)\]:.*blocked using.*from=<(.*)> to=<(.*)> proto')) # blacklist
 	RegExps.append(re.compile('.*NOQUEUE: reject: RCPT from (.*)\[(.*)\].*Helo command rejected: need fully-qualified hostname; from=<(.*)> to=<(.*)> proto')) # broken helo
 	list_of_iptables_chains = {}
-	file_checkpoint_rules = '/var/backups/fucklog_iptables_rules'
 	postfix_log_file = "/var/log/everything/current"
 	# Statistics
 	today_ip_blocked = all_ip_blocked = 0
 	# Locks
 	lock_output_log_file = thread.allocate_lock()
 	lock_stats_update = thread.allocate_lock()
-	lock_create_checkpoint = thread.allocate_lock()
 	# Logfile
 	output_log_file = '/tmp/.fucklog_log_file.txt'
 	log_file = open(output_log_file,'a')
 	# MRTG files
 	file_mrtg_stats = open("/tmp/.fucklog_mrtg", 'w')
 
-def create_checkpoint_rules():
-	lock_create_checkpoint.acquire()
-	os.system('/sbin/iptables -L -n > '+file_checkpoint_rules+'.new')
-	os.rename(file_checkpoint_rules+'.new', file_checkpoint_rules)
-	lock_create_checkpoint.release()
-
-def checkpoint_daemon(Id):
+def aggiorna_lasso(Id):
+	"""Prelevo la lista Lasso e aggiorno Cidr->Fucklog->Mysql"""
+	
+	import urllib, netaddr
+	
 	while True:
-		time.sleep(3600)
-		create_checkpoint_rules()
+		time.sleep(129600) # aggiorna dopo 36 ore
+		logit('Lasso: aggiornamento '+str(datetime.datetime.now()))
+		try:
+			lassofile = urllib.urlopen("http://www.spamhaus.org/drop/drop.lasso")
+		except:
+			logit("Lasso: aggiornamento fallito")
+			time.sleep(3600)
+			continue
+
+		db = fucklog_utils.connetto_db()
+		db.execute("delete from CIDR where CATEGORY='lasso'")
+
+		for line in lassofile:
+			if line.startswith(';'):
+				continue
+			cidr, note = line[:-1].split(';')
+			try:
+				cidr = netaddr.IPNetwork(cidr)
+			except:
+				logit('Lasso: errore con '+cidr)
+				continue
+			db.execute("insert into CIDR (CIDR, SIZE, NAME, CATEGORY) values (%s,%s,%s,'lasso')", (cidr, cidr.size, note.strip()))
+		del lassofile
+
+		db.close()
 
 def logit(text):
 	lock_output_log_file.acquire()
@@ -54,43 +73,6 @@ def update_stats():
 	file_mrtg_stats.flush()
 	lock_stats_update.release()
 
-def rm_old_iptables_chains():
-	global all_ip_blocked
-	global cached_ips # probabilmente si puo' eliminare
-
-	my_today = 'fucklog-'+str(datetime.date.today())
-	for chain_name in list_of_iptables_chains.keys():
-		if (chain_name < my_today):
-			logit("CleanIptables: parso la chain: "+chain_name)
-			# select and delete every chain's IP
-			for chain_ip in os.popen('/sbin/iptables -L '+chain_name+' -n'):
-				if chain_ip.startswith("DROP"):
-					ip_to_remove = chain_ip.split()[3]
-					logit("CleanIptables: leggo l'IP " + ip_to_remove)
-					# se l'IP è presente nella cache
-					if cached_ips.has_key(ip_to_remove):
-						logit("CleanIptables: l'IP è in cached_ips "+ip_to_remove)
-						# elimino prima un eventuale valore (CIDR) associato
-						if cached_ips[ip_to_remove]:
-							logit("CleanIptables: alla chiave IP è associato un valore "+cached_ips[ip_to_remove])
-							try:
-								del cached_ips[ cached_ips[ip_to_remove] ]
-							except:
-								logit("CleanIptables: forse IP doppio "+cached_ips[ip_to_remove])
-						# ora posso eliminare l'IP principale
-						try:
-							del cached_ips[ip_to_remove]
-						except:
-							logit("CleanIptables: forse IP doppio "+ip_to_remove)
-						all_ip_blocked -= 1
-						logit("CleanIptables: l'IP è stato rimosso "+ ip_to_remove)
-			# remove the chain
-			for flag in ['F', 'X']: # chain flush and remove
-				os.system("/sbin/iptables -"+flag+" "+chain_name)
-			del list_of_iptables_chains[chain_name]
-			logit("CleanIptables: chain removed "+chain_name)
-	update_stats()
-
 def mrproper(Id):
 	global today_ip_blocked
 
@@ -102,7 +84,6 @@ def mrproper(Id):
 		time.sleep(secs_of_sleep)
 		logit("MrProper: cleanup start")
 		today_ip_blocked = 0
-		rm_old_iptables_chains()
 		fucklog_utils.is_already_mapped('127.0.0.1',reset_cache=True) # Barbatrucco per forzare il flush della cache delle CIDR
 		fucklog_utils.geoip_db = False # Barbatrucco per forzare il refresh del DB di geolocalizzazione
 		# elimino tutti gli IP che non si sono ripresentati negli ultimi 6 mesi
@@ -110,8 +91,45 @@ def mrproper(Id):
 		db.execute('delete from IP where DATE < (CURRENT_TIMESTAMP() - INTERVAL 6 MONTH)')
 		db.close()
 
-def parse_log(Id):
+def gia_bloccato(IP):
+	"""Accetto una stringa con IP/CIDR.
+	Restituisco Vero se l'IP è gia' bloccato in IPTABLES (controllando Blocked->Fucklog->MySQL)."""
+	
+	db = fucklog_utils.connetto_db()
+	db.execute('select IP from BLOCKED where IP=%s', (IP,))
+	tmp = db.fetchone()
+	if tmp:
+		return True
+	else:
+		return False
+	
+def verifica_manuale_pbl(IP):
+	"""Ricevo un IP e lo metto in coda per la verifica via WEB (PblUrk->Fucklog->MySQL)"""
+	
+	db = fucklog_utils.connetto_db()
+	try:
+		db.execute("insert into PBLURL (URL) values (%s)", (IP,))
+	except:
+		pass
+	os.system("echo 'http://mail.gelma.net/pbl_check.php'|mail -s 'cekka "+IP+"' andrea.gelmini@gmail.com")
+
+def blocca_in_iptables(indirizzo_da_bloccare, bloccalo_per):
+	"""Ricevo IP e numero di giorni.
+	Metto in IPTables e aggiorno Blocked->Fucklog->Mysql."""
+	
 	global today_ip_blocked, all_ip_blocked
+	db = fucklog_utils.connetto_db()
+	
+	fino_al_timestamp = str( datetime.datetime.now() + datetime.timedelta(days=bloccalo_per) ) # calcolo il timestamp di fine
+	os.system("/sbin/iptables -A 'fucklog' -s "+indirizzo_da_bloccare+" --protocol tcp --dport 25 -j DROP")
+	
+	db.execute("insert into BLOCKED (IP, END) values (%s, %s)", (indirizzo_da_bloccare, fino_al_timestamp))
+
+	today_ip_blocked += 1
+	all_ip_blocked   += 1
+	
+def parse_log(Id):
+	global db, today_ip_blocked, all_ip_blocked
 
 	if os.path.isfile(postfix_log_file):
 		grep_command = "/bin/grep --mmap -E '(fully-qualified|blocked)' " + postfix_log_file
@@ -120,68 +138,50 @@ def parse_log(Id):
 		print "Problema sul file di log", postfix_log_file
 		sys.exit(-1)
 
-	db = fucklog_utils.connetto_db()
-	Cidr_To_Block = None
-
 	while True:
-		logit("Parse: begin read log file")
 		for log_line in os.popen(grep_command):
 			for REASON, regexp in enumerate(RegExps): # REASON=0 (rbl) 1 (helo)
-				m = regexp.match(log_line) # match for regexp
-				if m: # if it matches
-					IP = m.group(2)
-					if not cached_ips.has_key(IP):
-						cached_ips[IP] = None
-						aggiungi_log = ''
-						# Estrapolo i dati
-						DNS, FROM, TO = m.group(1), m.group(3), m.group(4) #Assign to more readable vars
+				m = regexp.match(log_line) # applico le regexp
+				if m: # se combaciano
+					if not gia_bloccato(m.group(2)): # controllo che l'IP non sia gia' bloccato
+						IP, DNS, FROM, TO = m.group(2), m.group(1), m.group(3), m.group(4) # estrapolo i dati
 						if DNS == 'unknown': DNS = None
-						# recupero le ripetizioni e incremento
-						db.execute('select COUNTER from IP where IP=INET_ATON(%s)', (IP,))
-						tmp = db.fetchone()
-						if tmp:
-							blocked_for_days = tmp[0] + 1
-						else:
-							blocked_for_days = 1
-						# aggiorno contatore persistente in MySQL
-						try:
-							db.execute("insert into IP (IP, DNS, FROOM, TOO, REASON, LINE, GEOIP) values (INET_ATON(%s), %s, %s, %s, %s, %s, %s)", (IP, DNS, FROM, TO, REASON, log_line, fucklog_utils.geoip_from_ip(IP)))
-						except db.IntegrityError:
-							db.execute("update IP set DNS=%s, FROOM=%s, TOO=%s, REASON=%s, LINE=%s, counter=counter+1, DATE=CURRENT_TIMESTAMP where IP=INET_ATON(%s)", (DNS, FROM, TO, REASON, log_line, IP))
-						# calcolo la data di termine, e controllo che esista la chain relativa
-						until_date = str(datetime.date.today()+ datetime.timedelta(days=blocked_for_days))
-						if not list_of_iptables_chains.has_key("fucklog-"+until_date):
-							os.system("/sbin/iptables -N 'fucklog-"+until_date+"'")
-							list_of_iptables_chains["fucklog-"+until_date] = None
-						# se si tratta di un IP con CIDR nota, leggo la CIDR
-						Cidr_To_Block = fucklog_utils.is_already_mapped(IP)
-						if Cidr_To_Block:
-							aggiungi_log  = 'CIDR'
-							#	e se è un IP PBL non noto, lo metto in coda di soluzione via form web
-						elif fucklog_utils.is_pbl(IP):
+						CIDR_dello_IP = fucklog_utils.is_already_mapped(IP) # controllo se l'IP appartiene ad una classe nota
+						if CIDR_dello_IP: # qui lavoro sulla CIDR
+							if gia_bloccato(CIDR_dello_IP): # controllo che la CIDR dell'IP non sia gia' bloccata
+								continue
+							else:
+								indirizzo_da_bloccare = CIDR_dello_IP # ricavo il valore per iptables
+								db.execute('select COUNTER from CIDR where CIDR=%s', (CIDR_dello_IP,)) # ricavo fino a quando bloccarlo
+								tmp = db.fetchone()
+								if tmp:
+									bloccalo_per = tmp[0] + 1
+								else:
+									bloccalo_per = 1
+								try: # aggiorno il blocco nel DB
+									db.execute("update CIDR set counter=%s where CIDR=%s", (bloccalo_per, CIDR_dello_IP))
+								except:
+									pass								
+						else: # qui lavoro sul singolo IP
+							#riattiva il controllo seguente
+							if fucklog_utils.is_pbl(IP): # diversamente continuo il lavoro sul singolo IP, che se fa parte di una CIDR PBL non nota, viene accodato per l'inserimento manuale
+								verifica_manuale_pbl(IP)
+							# ricavo per quante volte è gia' stato bloccato
+							db.execute('select COUNTER from IP where IP=INET_ATON(%s)', (IP,))
+							tmp = db.fetchone()
+							if tmp:
+								bloccalo_per = tmp[0] + 1
+							else:
+								bloccalo_per = 1
+							# aggiorno contatore in MySQL (Ip->Fucklog->MySql)
 							try:
-								db.execute("insert into PBLURL (URL) values (%s)", (IP,))
-							except:
-								pass
-							os.system("echo 'http://mail.gelma.net/pbl_check.php'|mail -s 'cekka "+IP+"' andrea.gelmini@gmail.com")
-							aggiungi_log  = 'qPBL'
-						# inserimento in IPTables
-						if Cidr_To_Block: # se ho la CIDR
-							if cached_ips.has_key(Cidr_To_Block): # controllo se sia gia' bloccata
-								continue # nel qual caso mollo e passo alla riga successiva
-							else: # diversamente, se non è gia' bloccata,
-								address_for_iptables = Cidr_To_Block # la setto per il blocco
-								cached_ips[Cidr_To_Block] = IP # metto la CIDR in cache e ci associo il singolo IP, per la rimozione in fase di cleanup
-								Cidr_To_Block = None # resetto il valore per il prossimo giro
-						else:
-							address_for_iptables = IP # se non ho la CIDR blocco il singolo IP
-						# invoco davvero il blocco con IPTables
-						os.system("/sbin/iptables -A 'fucklog-"+until_date+"' -s "+address_for_iptables+" --protocol tcp --dport 25 -m time --datestop "+until_date+"T23:59:59 -j DROP")
-						logit("Parse: "+address_for_iptables+'|'+str(blocked_for_days)+'|'+until_date+'|'+aggiungi_log+'|'+str(DNS)+'|'+FROM+'|'+TO+'|'+str(REASON))
-						# aggiorno i totali
-						today_ip_blocked += 1
-						all_ip_blocked   += 1
-		logit("Parse: end read")
+								db.execute("insert into IP (IP, DNS, FROOM, TOO, REASON, LINE, GEOIP) values (INET_ATON(%s), %s, %s, %s, %s, %s, %s)", (IP, DNS, FROM, TO, REASON, log_line, fucklog_utils.geoip_from_ip(IP)))
+							except db.IntegrityError:
+								db.execute("update IP set DNS=%s, FROOM=%s, TOO=%s, REASON=%s, LINE=%s, counter=counter+1, DATE=CURRENT_TIMESTAMP where IP=INET_ATON(%s)", (DNS, FROM, TO, REASON, log_line, IP))
+							indirizzo_da_bloccare = IP
+						blocca_in_iptables(indirizzo_da_bloccare, bloccalo_per)
+						TReason = 'HELO' if REASON else 'RBL'
+						logit("Parse: "+indirizzo_da_bloccare+'|'+str(bloccalo_per)+'|'+str(DNS)+'|'+FROM+'|'+TO+'|'+TReason)
 		update_stats()
 		time.sleep(60*interval)
 
@@ -190,50 +190,27 @@ if __name__ == "__main__":
 	# ricerca CIDR in tempo reale
 	# partenza dei servizi in automatico
 	# controllo per unica istanza in esecuzione
-	# dump degli IP cachati
-	
-	# Resume list of iptables chains/rules and delete the old ones
-	for line in os.popen("/sbin/iptables -L -n|/bin/grep 'Chain fucklog'"):
-		chain_name = line.split()[1]
-		for line in os.popen("/sbin/iptables -n -L "+chain_name):
-			if line.startswith('DROP'):
-				cached_ips[ line.split()[3] ] = None
-				all_ip_blocked += 1
-		list_of_iptables_chains[chain_name] = None
-	
-	if os.path.isfile(file_checkpoint_rules):
-		regexp = re.compile('^DROP       tcp  --  (.*) .* 0.0.0.0/0           tcp dpt:25 TIME until date (.*) 23:59:59')
-		with open(file_checkpoint_rules, 'r') as filetoparse:
-			for line in filetoparse:
-				m = regexp.match(line)
-				if m:
-					recover_ip, recover_chain, termine = m.group(1).strip(), 'fucklog-'+m.group(2), m.group(2)
-					if cached_ips.has_key(recover_ip): # controllo se gia' mappato IP
-						continue
-					else:
-						if not list_of_iptables_chains.has_key(recover_chain): # controllo che esista la chain
-							os.system("/sbin/iptables -N '"+recover_chain+"'")
-							list_of_iptables_chains[recover_chain] = None
-						os.system("/sbin/iptables -A '"+recover_chain+"' -s "+recover_ip+" --protocol tcp --dport 25 -m time --datestop "+termine+"T23:59:59 -j DROP")
-						cached_ips[ recover_ip ] = None
-						all_ip_blocked += 1
-	try:
-		del regexp, recover_ip, recover_chain, termine
-	except:
-		pass
 
-	rm_old_iptables_chains()
-	create_checkpoint_rules()	
+	db = fucklog_utils.connetto_db()
 
-	thread.start_new_thread(parse_log,					(1, ))
-	thread.start_new_thread(mrproper,					(2, ))
-	thread.start_new_thread(checkpoint_daemon,			(3, ))
+	# Qui ci va il resume delle regole di IPTables
+	
+	for flag in ['F', 'X']: # chain flush and remove
+		os.system("/sbin/iptables -"+flag+" fucklog")
+	os.system("/sbin/iptables -N fucklog")
+
+	# sego tutte le voci più vecchie di ora
+	# conto il numero totale di regole
+	# conto le regole attivate oggi
+	
+	#thread.start_new_thread(parse_log,					(1, ))
+	#thread.start_new_thread(mrproper,					(2, ))
+	thread.start_new_thread(aggiorna_lasso,				(3, ))
 
 	while True:
 		command = raw_input("What's up:")
 		if command == "q":
 			logit("Main: clean shutdown")
-			create_checkpoint_rules()
 			sys.exit()
 		if command == "s":
 			logit("Stats: "+str(today_ip_blocked)+"/"+str(all_ip_blocked)+'-'+str(len(list_of_iptables_chains)))
@@ -242,14 +219,3 @@ if __name__ == "__main__":
 		if command == "f":
 			fucklog_utils.is_already_mapped('127.0.0.1',reset_cache=True)
 			print "Forzata rilettura della tabella di CIDR"
-		if command == "c":
-			create_checkpoint_rules()
-			print "Checkpoint rules creato"
-		if command == "d":
-			out = open('/tmp/fucklog_debug','w')
-			for item in cached_ips.keys():
-				if cached_ips[item]:
-					out.write(item,cached_ips[item]+'\n')
-				else:
-					out.write(item+'\n')
-			out.close()
