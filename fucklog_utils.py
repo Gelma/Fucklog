@@ -408,40 +408,6 @@ def Pbl_queue():
 		else:
 			time.sleep(3600)
 
-
-
-def UCE_update():
-	# Invocato, scarico e aggiorno l'elenco di UCE.
-	# Onoro KeepAlive
-
-	while True:
-		print "UCE update:",str(datetime.datetime.now())
-
-		os.system('/usr/bin/rsync -aPz --compress-level=9 rsync-mirrors.uceprotect.net::RBLDNSD-ALL/dnsbl-2.uceprotect.net /tmp/.dnsbl-2.uceprotect.net')
-		#disable uce3 - too aggressive
-		#os.system('/usr/bin/rsync -aPz --compress-level=9 rsync-mirrors.uceprotect.net::RBLDNSD-ALL/dnsbl-3.uceprotect.net /tmp/.dnsbl-3.uceprotect.net')
-		
-		db = connetto_db()
-		db.execute("delete from CIDR where CATEGORY='uce'")
-
-		for cidr in os.popen("/bin/cat /tmp/.dnsbl-?.uceprotect.net"):
-			cidr = cidr.split()[0]
-			try:
-				cidr = netaddr.IPNetwork(cidr)
-			except:
-				#print "Scarto cidr",cidr
-				continue
-			try:
-				db.execute("insert into CIDR(CIDR, SIZE, CATEGORY) values (%s,%s,'uce')", (cidr, cidr.size))
-			except:
-				pass
-				#print "Fallito inserimento", cidr
-
-		if KeepAlive is False:
-			break
-		else:
-			time.sleep(86400) # aggiorna dopo 36 ore
-
 def Totali():
 	# Invocato torno il numero totale di IP suddivisi per classi A
 

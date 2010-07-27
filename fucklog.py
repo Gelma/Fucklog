@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import datetime, os, re, shelve, sys, thread, time, fucklog_utils
+import datetime, os, re, shelve, sys, thread, time, fucklog_utils, netaddr
 
 if True:
 	# Global vars
@@ -25,7 +25,7 @@ if True:
 def aggiorna_lasso(Id):
 	"""Prelevo la lista Lasso e aggiorno Cidr->Fucklog->Mysql"""
 	
-	import urllib, netaddr
+	import urllib
 	
 	while True:
 		time.sleep(129600) # aggiorna dopo 36 ore
@@ -49,9 +49,42 @@ def aggiorna_lasso(Id):
 			except:
 				logit('Lasso: errore con '+cidr)
 				continue
-			db.execute("insert into CIDR (CIDR, SIZE, NAME, CATEGORY) values (%s,%s,%s,'lasso')", (cidr, cidr.size, note.strip()))
+			try:
+				db.execute("insert into CIDR (CIDR, SIZE, NAME, CATEGORY) values (%s,%s,%s,'lasso')", (cidr, cidr.size, note.strip()))
+			except:
+				logit('Lasso: errore db con '+cidr)
 		del lassofile
 
+		db.close()
+
+def aggiorna_uce(Id):
+	"""Aggiorno la lista UCE2 in Cidr->Fucklog->MySQL"""
+	
+	while True:
+		time.sleep(90000) # aggiorna ogni 25 ore
+		logit('UCE: aggiornamento '+str(datetime.datetime.now()))
+
+		os.system('/usr/bin/rsync -aqz --no-motd --compress-level=9 rsync-mirrors.uceprotect.net::RBLDNSD-ALL/dnsbl-2.uceprotect.net /tmp/.dnsbl-2.uceprotect.net')
+		#variante con UCE3: os.system('/usr/bin/rsync -aPz --compress-level=9 rsync-mirrors.uceprotect.net::RBLDNSD-ALL/dnsbl-3.uceprotect.net /tmp/.dnsbl-3.uceprotect.net')
+		
+		db = fucklog_utils.connetto_db()
+		db.execute("delete from CIDR where CATEGORY='uce'")
+
+		for line in os.popen("/bin/cat /tmp/.dnsbl-?.uceprotect.net"):
+			if line.startswith('#') or line.startswith('$') or line.startswith('$') or line.startswith(':') or line.startswith('!') or line.startswith('127.0.0.2  Test Record'):
+				continue
+			note = line.split('because')[1].split('are hosted')[0].strip()
+			cidr = line.split()[0]
+			try:
+				cidr = netaddr.IPNetwork(cidr)
+			except:
+				logit('UCE: errore con '+cidr)
+				continue
+			try:
+				db.execute("insert into CIDR(CIDR, NAME, SIZE, CATEGORY) values (%s,%s,%s,'uce')", (cidr, note, cidr.size))
+			except:
+				logit('UCE: errore db con '+line)
+		
 		db.close()
 
 def logit(text):
@@ -206,6 +239,8 @@ if __name__ == "__main__":
 	#thread.start_new_thread(parse_log,					(1, ))
 	#thread.start_new_thread(mrproper,					(2, ))
 	thread.start_new_thread(aggiorna_lasso,				(3, ))
+	thread.start_new_thread(aggiorna_uce,				(4, ))
+
 
 	while True:
 		command = raw_input("What's up:")
