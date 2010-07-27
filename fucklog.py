@@ -123,6 +123,65 @@ def aggiorna_uce(Id):
 		db.close()
 		aggiorna_cidrarc()
 
+def aggiorna_pbl(id):
+	"""Controllo le CIDR di PBL inserite via web e le attivo (PblUrl->Fucklog->MySQL)"""
+
+	while True:
+		logit('WebPBL: inizio')
+		db = fucklog_utils.connetto_db()
+		db.execute("select URL, CIDR from PBLURL where CIDR is NOT null") # Prelevo le CIDR inserite via Web
+		for row in db.fetchall():
+			IP = row[0]
+			CIDR = row[1]
+
+			try: # controllo la validita' dei dati
+				tmp = netaddr.IPAddress(IP)
+			except:
+				logit('WebPBL: IP non valido '+IP)
+				db.execute("delete from PBLURL where URL=%s",(IP,))
+				continue
+			try:
+				CIDR = netaddr.IPNetwork(CIDR)
+			except:
+				logit("WebPBL: CIDR non valida "+CIDR)
+				db.execute("delete from PBLURL where URL=%s",(IP,))
+				continue
+
+			if ip_gia_in_cidr(IP):
+				logit("WebPBL: gia' mappato "+IP)
+				db.execute("delete from PBLURL where URL=%s",(IP,))
+				continue
+
+			if not netaddr.ip.all_matching_cidrs(netaddr.IPAddress(IP),[netaddr.IPNetwork(CIDR),]):
+				logit("WebPBL: IP/CIDR non combaciano "+str(IP)+" "+str(CIDR))
+				db.execute("delete from PBLURL where URL=%s",(IP,))
+				continue
+
+			try: # tutto ok, quindi inserisco
+				db.execute("insert into CIDR (CIDR, SIZE, CATEGORY) values (%s,%s,'pbl')", (CIDR, CIDR.size))
+				aggiorna_cidrarc()
+			except:
+				logit("WebPBL: fallito inserimento "+CIDR)
+			db.execute("delete from PBLURL where URL=%s",(IP,))
+			
+		
+		# ripeto il controllo su tutti gli IP rimasti
+		db.execute("select URL from PBLURL where CIDR is null")
+		for row in db.fetchall():
+			IP = row[0]
+			try:
+				tmp = netaddr.IPAddress(IP)
+			except:
+				logit('WebPBL: non è un IP valido '+IP)
+				db.execute("delete from PBLURL where URL=%s",(IP,))
+				continue
+			if ip_gia_in_cidr(IP):
+				logit("WebPBL: gia' mappato "+IP)
+				db.execute("delete from PBLURL where URL=%s",(IP,))
+
+		db.close()
+		time.sleep(3600)
+
 def pbl_expire(Id):
 	"""Controllo tutte le CIDR PBL più vecchie di due mesi, ed eventualmente le sego (Cidr->Fucklog->MySQL)"""
 
@@ -156,65 +215,6 @@ def pbl_expire(Id):
 					db.execute("update CIDR set LASTUPDATE=CURRENT_TIMESTAMP where CIDR=%s", (CIDR,))
 				time.sleep(pausa_tra_le_query)
 
-def aggiorna_pbl(id):
-	"""Controllo le CIDR di PBL inserite via web e le attivo (PblUrl->Fucklog->MySQL)"""
-
-	while True:
-		logit('WebPBL: inizio')
-		db = fucklog_utils.connetto_db()
-		db.execute("select URL, CIDR from PBLURL where CIDR is NOT null") # Prelevo le CIDR inserite via Web
-		for row in db.fetchall():
-			IP = row[0]
-			CIDR = row[1]
-
-			try: # controllo la validita' dei dati
-				tmp = netaddr.IPAddress(IP)
-			except:
-				logit('WebPBL: IP non valido '+IP)
-				db.execute("delete from PBLURL where URL=%s",(IP,))
-				continue
-			try:
-				CIDR = netaddr.IPNetwork(CIDR)
-			except:
-				logit("WebPBL: CIDR non valida "+CIDR)
-				db.execute("delete from PBLURL where URL=%s",(IP,))
-				continue
-
-			if fucklog_utils.is_already_mapped(IP):
-				logit("WebPBL: gia' mappato "+IP)
-				db.execute("delete from PBLURL where URL=%s",(IP,))
-				continue
-
-			if not netaddr.ip.all_matching_cidrs(netaddr.IPAddress(IP),[netaddr.IPNetwork(CIDR),]):
-				logit("WebPBL: IP/CIDR non combaciano "+str(IP)+" "+str(CIDR))
-				db.execute("delete from PBLURL where URL=%s",(IP,))
-				continue
-
-			try: # tutto ok, quindi inserisco
-				db.execute("insert into CIDR (CIDR, SIZE, CATEGORY) values (%s,%s,'pbl')", (CIDR, CIDR.size))
-				aggiorna_cidrarc()
-			except:
-				logit("WebPBL: fallito inserimento "+CIDR)
-			db.execute("delete from PBLURL where URL=%s",(IP,))
-			
-		
-		# ripeto il controllo su tutti gli IP rimasti
-		db.execute("select URL from PBLURL where CIDR is null")
-		for row in db.fetchall():
-			IP = row[0]
-			try:
-				tmp = netaddr.IPAddress(IP)
-			except:
-				logit('WebPBL: non è un IP valido '+IP)
-				db.execute("delete from PBLURL where URL=%s",(IP,))
-				continue
-			if fucklog_utils.is_already_mapped(IP):
-				logit("WebPBL: gia' mappato "+IP)
-				db.execute("delete from PBLURL where URL=%s",(IP,))
-
-		db.close()
-		time.sleep(3600)
-
 def logit(text):
 	lock_output_log_file.acquire()
 	now = datetime.datetime.now()
@@ -245,11 +245,10 @@ def mrproper(Id):
 		time.sleep(secs_of_sleep)
 		logit("MrProper: cleanup start")
 		today_ip_blocked = 0
-		fucklog_utils.is_already_mapped('127.0.0.1',reset_cache=True) # Barbatrucco per forzare il flush della cache delle CIDR
 		fucklog_utils.geoip_db = False # Barbatrucco per forzare il refresh del DB di geolocalizzazione
-		# elimino tutti gli IP che non si sono ripresentati negli ultimi 6 mesi
+		# elimino tutti gli IP che non si sono ripresentati negli ultimi 4 mesi
 		db = fucklog_utils.connetto_db()
-		db.execute('delete from IP where DATE < (CURRENT_TIMESTAMP() - INTERVAL 6 MONTH)')
+		db.execute('delete from IP where DATE < (CURRENT_TIMESTAMP() - INTERVAL 4 MONTH)')
 		db.close()
 
 def gia_in_blocco(IP):
@@ -288,16 +287,22 @@ def blocca_in_iptables(indirizzo_da_bloccare, bloccalo_per):
 
 	today_ip_blocked += 1
 	all_ip_blocked   += 1
+
+def ip_gia_in_cidr(IP):
+	"""Ricevo un IP e torno la sua eventuale classe CIDR da CidrArc->Fucklog->Mysql"""
 	
+	IP = netaddr.IPAddress(IP)
+	db = fucklog_utils.connetto_db()
+	db.execute('select CIDR from CIDRARC where IPSTART <=%s and IPEND >=%s', (int(IP), int(IP)))
+	IP = db.fetchone()
+	db.close()
+	if IP:
+		return IP[0]
+	else:
+		return False
+
 def parse_log(Id):
 	global db, today_ip_blocked, all_ip_blocked
-
-	if os.path.isfile(postfix_log_file):
-		grep_command = "/bin/grep --mmap -E '(fully-qualified|blocked)' " + postfix_log_file
-	else:
-		logit("Errore sul log file")
-		print "Problema sul file di log", postfix_log_file
-		sys.exit(-1)
 
 	while True:
 		for log_line in os.popen(grep_command):
@@ -307,7 +312,7 @@ def parse_log(Id):
 					if not gia_in_blocco(m.group(2)): # controllo che l'IP non sia gia' bloccato
 						IP, DNS, FROM, TO = m.group(2), m.group(1), m.group(3), m.group(4) # estrapolo i dati
 						if DNS == 'unknown': DNS = None
-						CIDR_dello_IP = fucklog_utils.is_already_mapped(IP) # controllo se l'IP appartiene ad una classe nota
+						CIDR_dello_IP = ip_gia_in_cidr(IP) # controllo se l'IP appartiene ad una classe nota
 						if CIDR_dello_IP: # qui lavoro sulla CIDR
 							if gia_in_blocco(CIDR_dello_IP): # controllo che la CIDR dell'IP non sia gia' bloccata
 								continue
@@ -363,6 +368,14 @@ if __name__ == "__main__":
 	# conto il numero totale di regole
 	# conto le regole attivate oggi
 	
+	if True: # controllo il file di log
+		if os.path.isfile(postfix_log_file):
+			grep_command = "/bin/grep --mmap -E '(fully-qualified|blocked)' " + postfix_log_file
+		else:
+			logit("Errore sul log file")
+			print "Problema sul file di log", postfix_log_file
+			sys.exit(-1)
+	
 	#thread.start_new_thread(parse_log,					(1, ))
 	#thread.start_new_thread(mrproper,					(2, ))
 	#thread.start_new_thread(aggiorna_lasso,				(3, ))
@@ -378,6 +391,3 @@ if __name__ == "__main__":
 		if command == "s":
 			logit("Stats: "+str(today_ip_blocked)+"/"+str(all_ip_blocked)+'-'+str(len(list_of_iptables_chains)))
 			print "   Today IP / all IP blocked:", today_ip_blocked, "/",  all_ip_blocked,  ". Chains: ", len(list_of_iptables_chains)
-		if command == "f":
-			fucklog_utils.is_already_mapped('127.0.0.1',reset_cache=True)
-			print "Forzata rilettura della tabella di CIDR"

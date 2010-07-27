@@ -283,44 +283,6 @@ def Clean_ip():
 			print "Elimino: ",IP
 			db.execute("delete from IP where IP=%s",(int(IP),))
 
-def is_already_mapped(IP,reset_cache=False):
-	# prendo un IP, lo confronto con il DB, ritorno la CIDR se ricade nella mappatura relativa
-	# utilizzo cached_cidr a livello globale
-	# reset_cache = forza il flush della cache
-
-	global Cached_CIDRs
-
-	if Cached_CIDRs is None or reset_cache is True:
-		lock_cached_cidrs.acquire()
-		# inizializzo il dizionario
-		Cached_CIDRs = {}
-		for n in xrange(256):
-			Cached_CIDRs[str(n)] = []
-		# succhio dal db e creo le liste per classe A
-		db = connetto_db()
-		db.execute('select CIDR from CIDR order by SIZE desc')
-		for row in db.fetchall():
-			CIDR = row[0]
-			classe = CIDR.split('.')[0]
-			Cached_CIDRs[classe].append(CIDR)
-		# riduco ogni classe A ai minimi termini
-		for A in Cached_CIDRs:
-			if len(Cached_CIDRs[A]):
-				#inizio = len(Cached_CIDRs[A])
-				Cached_CIDRs[A] = netaddr.cidr_merge(Cached_CIDRs[A])
-				#print "Differenza",inizio-len(Cached_CIDRs[A])
-		db.close()
-		lock_cached_cidrs.release()
-
-	ip = netaddr.IPAddress(str(IP).strip())
-	ClasseA = str(IP).split('.')[0]
-	ClassePrecedente = str(int(ClasseA) - 1)
-
-	for CIDR in Cached_CIDRs[ClasseA] + Cached_CIDRs[ClassePrecedente]:
-		if netaddr.ip.all_matching_cidrs(ip,[CIDR,]):
-			return str(netaddr.ip.all_matching_cidrs(ip,[CIDR,])[0])
-	return False
-
 def ip_to_dns(IP, without_numbers=True):
 	# prendo un IP e torno il reverse lookup
 	# se without_numbers a True, elimino i numeri
