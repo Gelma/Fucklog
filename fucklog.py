@@ -87,7 +87,7 @@ def aggiorna_uce(Id):
 		
 		db.close()
 
-def aggiorna_pbl_expire(Id):
+def pbl_expire(Id):
 	"""Controllo tutte le CIDR PBL più vecchie di due mesi, ed eventualmente le sego (Cidr->Fucklog->MySQL)"""
 
 	import random
@@ -118,6 +118,62 @@ def aggiorna_pbl_expire(Id):
 				else:
 					db.execute("update CIDR set LASTUPDATE=CURRENT_TIMESTAMP where CIDR=%s", (CIDR,))
 				time.sleep(pausa_tra_le_query)
+
+def aggiorna_pbl(id):
+	"""Controllo le CIDR di PBL inserite via web e le attivo (PblUrl->Fucklog->MySQL)"""
+
+	while True:
+		logit('WebPBL: inizio')
+		db = fucklog_utils.connetto_db()
+		db.execute("select URL, CIDR from PBLURL where CIDR is NOT null") # Prelevo le CIDR inserite via Web
+		for row in db.fetchall():
+			IP = row[0]
+			CIDR = row[1]
+
+			try: # controllo la validita' dei dati
+				tmp = netaddr.IPAddress(IP)
+			except:
+				logit('WebPBL: IP non valido '+IP)
+				db.execute("delete from PBLURL where URL=%s",(IP,))
+				continue
+			try:
+				tmp = netaddr.IPNetwork(CIDR)
+			except:
+				logit("WebPBL: CIDR non valida "+CIDR)
+				db.execute("delete from PBLURL where URL=%s",(IP,))
+
+			if fucklog_utils.is_already_mapped(IP):
+				logit("WebPBL: gia' mappato "+IP)
+				db.execute("delete from PBLURL where URL=%s",(IP,))
+				continue
+
+			if not netaddr.ip.all_matching_cidrs(netaddr.IPAddress(IP),[netaddr.IPNetwork(CIDR),]):
+				logit("WebPBL: IP/CIDR non combaciano "+str(IP)+" "+str(CIDR))
+				db.execute("delete from PBLURL where URL=%s",(IP,))
+				continue
+
+			try: # tutto ok, quindi inserisco
+				db.execute("insert into CIDR(CIDR, SIZE, CATEGORY) values (%s,%s,'pbl')", (CIDR, CIDR.size))
+			except:
+				logit("WebPBL: fallito inserimento "+CIDR)
+				db.execute("delete from PBLURL where URL=%s",(IP,))
+
+		# ripeto il controllo su tutti gli IP rimasti
+		db.execute("select URL from PBLURL where CIDR is null")
+		for row in db.fetchall():
+			IP = row[0]
+			try:
+				tmp = netaddr.IPAddress(IP)
+			except:
+				logit('WebPBL: non è un IP valido '+IP)
+				db.execute("delete from PBLURL where URL=%s",(IP,))
+				continue
+			if fucklog_utils.is_already_mapped(IP):
+				logit("WebPBL: gia' mappato "+IP)
+				db.execute("delete from PBLURL where URL=%s",(IP,))
+
+		db.close()
+		time.sleep(3600)
 
 def logit(text):
 	lock_output_log_file.acquire()
@@ -272,7 +328,8 @@ if __name__ == "__main__":
 	#thread.start_new_thread(mrproper,					(2, ))
 	#thread.start_new_thread(aggiorna_lasso,				(3, ))
 	#thread.start_new_thread(aggiorna_uce,				(4, ))
-	#thread.start_new_thread(aggiorna_pbl_expire,		(5, ))
+	#thread.start_new_thread(pbl_expire,				(5, ))
+	thread.start_new_thread(aggiorna_pbl,				(6,	))
 
 	while True:
 		command = raw_input("What's up:")

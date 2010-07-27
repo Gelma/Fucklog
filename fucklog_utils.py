@@ -296,81 +296,6 @@ def Pbl_in_iptables():
 				if counter == 20:
 					return
 
-def Pbl_queue():
-	# Prendo le pbl.spamhaus.org dal log di postfix
-	# Porto il tutto in PBLURL->Fucklog-Mysql
-	# Vaglio le CIDR inserite via WEB
-
-	global Genera_Iptables
-	global Cached_CIDRs
-	Cached_CIDRs = None # Azzero la cache delle CIDRs
-
-	db = connetto_db()
-
-	while True:
-		# prendo le CIDR inserite via web e le vaglio
-		db.execute("select URL, CIDR from PBLURL where CIDR is NOT null")
-		for row in db.fetchall():
-			IP = row[0]
-			CIDR = row[1]
-
-			# controllo la validita' dei dati
-			try:
-				tmp = netaddr.IPAddress(IP)
-			except:
-				print "Non è un IP valido", IP
-				db.execute("delete from PBLURL where URL=%s",(IP,))
-				continue
-			try:
-				tmp = netaddr.IPNetwork(CIDR)
-			except:
-				print "Non è una CIDR valida", CIDR
-				db.execute("delete from PBLURL where URL=%s",(IP,))
-
-			# controllo che non sia gia' mappato (solo la roba nuova)
-			if is_already_mapped(IP):
-				print "Gia' mappato",IP
-				db.execute("delete from PBLURL where URL=%s",(IP,))
-				continue
-
-			# controllo che IP e CIDR siano compatibili
-			if not netaddr.ip.all_matching_cidrs(netaddr.IPAddress(IP),[netaddr.IPNetwork(CIDR),]):
-				print "Non combaciano IP/CIDR",IP,CIDR
-				db.execute("delete from PBLURL where URL=%s",(IP,))
-				continue
-
-			# inserisco e cancello
-			try:
-				db.execute("insert into CIDR(CIDR, SIZE, CATEGORY) values (%s,%s,'pbl')", (CIDR.strip(), Size_cidr(CIDR)))
-			except:
-				print "Fallito inserimento in CIDR di", IP, CIDR
-				db.execute("delete from PBLURL where URL=%s",(IP,))
-
-			print "Inserito in CIDR: ",IP,CIDR
-			Cached_CIDRs = None
-
-		# ripeto il controllo su tutti gli IP rimasti
-		db.execute("select URL from PBLURL where CIDR is null")
-		for row in db.fetchall():
-			IP = row[0]
-			# controllo la validita' dei dati
-			try:
-				tmp = netaddr.IPAddress(IP)
-			except:
-				print "Non è un IP valido", IP
-				db.execute("delete from PBLURL where URL=%s",(IP,))
-				continue
-			# controllo che non sia gia' mappato
-			if is_already_mapped(IP):
-				print "Gia' mappato (tutti)",IP
-				db.execute("delete from PBLURL where URL=%s",(IP,))
-
-		# controllo il ciclo
-		if KeepAlive is False:
-			break
-		else:
-			time.sleep(3600)
-
 def Totali():
 	# Invocato torno il numero totale di IP suddivisi per classi A
 
@@ -546,7 +471,6 @@ Opzioni:
 	-s --size_cidr       Torna il numero di IP che compongono una CIDR
 	-t --totali          Totale degli IP suddivisi per classi A
 	-x --cidr_db_size    Aggiorna le dimensioni delle CIDR in MySQLdb
-	-y --pbl-queue       Porta pbl URL da log nella tabella PBLURL, e committo le CIDR inserite via web (onoro -k e -i)
 	-z --clean-ip        Sego da IP->MySQL gli IP presenti nelle CIDR pbl
 """
 		sys.exit(-1)
@@ -555,7 +479,7 @@ if __name__ == "__main__":
 	import getopt
 	
 	try:
-		opts, args = getopt.getopt(sys.argv[1:], "cfghiknpstxyz", ["cristini","scanner","geoloc-update","help","iptables-update","keepalive","clusterptr","pbl-in-iptables","size-cidr","totali","cidr_db_size","pbl-queue","clean-ip"])
+		opts, args = getopt.getopt(sys.argv[1:], "cfghiknpstxz", ["cristini","scanner","geoloc-update","help","iptables-update","keepalive","clusterptr","pbl-in-iptables","size-cidr","totali","cidr_db_size","clean-ip"])
 	except getopt.GetoptError:
 		logga('Main: opzioni non valide: '+sys.argv[1:],'exit')
 
@@ -578,8 +502,6 @@ if __name__ == "__main__":
 			azione = "totali"
 		elif opt in ('-x', '--cidr_db_size'):
 			azione = "cidr_db_size"
-		elif opt in ('-y', '--pbl-queue'):
-			azione = "pbl-queue"
 		# ordered
 		elif opt in ('-n', '--clusterptr'):
 			azione = "clusterptr"
@@ -607,7 +529,5 @@ if __name__ == "__main__":
 		clusterptr()
 	elif azione == "scanner":
 		scanner()
-	elif azione == "pbl-queue":
-		Pbl_queue()
 	elif azione == "clean-ip":
 		Clean_ip()
