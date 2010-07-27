@@ -4,7 +4,6 @@ import datetime, os, re, shelve, sys, thread, time, fucklog_utils, netaddr
 
 if True:
 	# Global vars
-	cached_ips = {} # a breve dovrebbe sparire
 	interval = 10 # minutes
 	RegExps = [] # list of regular expressions to apply
 	RegExps.append(re.compile('.*RCPT from (.*)\[(.*)\]:.*blocked using.*from=<(.*)> to=<(.*)> proto')) # blacklist
@@ -15,13 +14,48 @@ if True:
 	today_ip_blocked = all_ip_blocked = 0
 	# Locks
 	lock_output_log_file = thread.allocate_lock()
-	lock_stats_update = thread.allocate_lock()
+	lock_stats_update    = thread.allocate_lock()
+	lock_aggiorna_cidrarc= thread.allocate_lock()
 	# Logfile
 	output_log_file = '/tmp/.fucklog_log_file.txt'
 	log_file = open(output_log_file,'a')
 	# MRTG files
 	file_mrtg_stats = open("/tmp/.fucklog_mrtg", 'w')
 
+def aggiorna_cidrarc(Id=1):
+	"""Prendo il contenuto di Cidr->Fucklog->MySQL e ottimizzo, infilando il risultato in CidrArc->Fucklog-MySQL"""
+	
+	if lock_aggiorna_cidrarc:
+		return
+	
+	lock_aggiorna_cidrarc.acquire()
+	logit('AggCidrarc: inizio')
+	cronometro = time.time()
+	db = fucklog_utils.connetto_db()
+	db.execute('select CIDR from CIDR')
+	lista_cidrs_nuovi = set([c[0] for c in db.fetchall()])
+	logit('AggCidrarc: totale CIDR iniziali '+str(len(lista_cidrs_nuovi)))
+	lista_cidrs_nuovi = set(netaddr.cidr_merge(lista_cidrs_nuovi))
+	logit('AggCidrarc: totale CIDR finali '+str(len(lista_cidrs_nuovi)))
+	
+	db.execute('select CIDR from CIDRARC')
+	lista_cidrs_vecchi = set([netaddr.IPNetwork(c[0]) for c in db.fetchall()])
+			
+	for cidr in lista_cidrs_nuovi: # solo in nuovi, aggiungo
+		if cidr not in lista_cidrs_vecchi:
+			logit('AggCidrarc: aggiungo '+cidr)
+			cidr = netaddr.IPNetwork(cidr)
+			db.execute('insert into CIDRARC (CIDR, IPSTART, IPEND, SIZE) values (%s, %s, %s, %s)', (cidr, int(cidr[0]), int(cidr[-1]), cidr.size))
+
+	for cidr in lista_cidrs_vecchi: # solo in vecchi, cancello
+		if cidr not in lista_cidrs_nuovi:
+			logit('AggCidrarc: rimuovo '+cidr)
+			db.execute('delete from CIDRARC where CIDR=%s', (cidr,))
+
+	db.close()
+	logit('AggCidrarc: completato in '+str(time.time() - cronometro)+' secondi')
+	lock_aggiorna_cidrarc.release()
+	
 def aggiorna_lasso(Id):
 	"""Prelevo la lista Lasso e aggiorno Cidr->Fucklog->Mysql"""
 	
@@ -56,6 +90,7 @@ def aggiorna_lasso(Id):
 		del lassofile
 
 		db.close()
+		aggiorna_cidrarc()
 
 def aggiorna_uce(Id):
 	"""Aggiorno la lista UCE2 in Cidr->Fucklog->MySQL"""
@@ -86,6 +121,7 @@ def aggiorna_uce(Id):
 				logit('UCE: errore db con '+line)
 		
 		db.close()
+		aggiorna_cidrarc()
 
 def pbl_expire(Id):
 	"""Controllo tutte le CIDR PBL più vecchie di due mesi, ed eventualmente le sego (Cidr->Fucklog->MySQL)"""
@@ -115,6 +151,7 @@ def pbl_expire(Id):
 					cancellate = cancellate + 1 # incremento le voci cancellate
 					logit('PBL Expire: elimino '+str(CIDR)+' - controllate: '+str(controllate)+' - cancellate: '+str(cancellate))
 					db.execute("delete from CIDR where CIDR=%s", (CIDR,))
+					thread.start_new_thread(aggiorna_cidrarc(), (1, ))
 				else:
 					db.execute("update CIDR set LASTUPDATE=CURRENT_TIMESTAMP where CIDR=%s", (CIDR,))
 				time.sleep(pausa_tra_le_query)
@@ -141,6 +178,7 @@ def aggiorna_pbl(id):
 			except:
 				logit("WebPBL: CIDR non valida "+CIDR)
 				db.execute("delete from PBLURL where URL=%s",(IP,))
+				continue
 
 			if fucklog_utils.is_already_mapped(IP):
 				logit("WebPBL: gia' mappato "+IP)
@@ -154,10 +192,12 @@ def aggiorna_pbl(id):
 
 			try: # tutto ok, quindi inserisco
 				db.execute("insert into CIDR (CIDR, SIZE, CATEGORY) values (%s,%s,'pbl')", (CIDR, CIDR.size))
+				aggiorna_cidrarc()
 			except:
 				logit("WebPBL: fallito inserimento "+CIDR)
 			db.execute("delete from PBLURL where URL=%s",(IP,))
-
+			
+		
 		# ripeto il controllo su tutti gli IP rimasti
 		db.execute("select URL from PBLURL where CIDR is null")
 		for row in db.fetchall():
@@ -212,7 +252,7 @@ def mrproper(Id):
 		db.execute('delete from IP where DATE < (CURRENT_TIMESTAMP() - INTERVAL 6 MONTH)')
 		db.close()
 
-def gia_bloccato(IP):
+def gia_in_blocco(IP):
 	"""Accetto una stringa con IP/CIDR.
 	Restituisco Vero se l'IP è gia' bloccato in IPTABLES (controllando Blocked->Fucklog->MySQL)."""
 	
@@ -264,12 +304,12 @@ def parse_log(Id):
 			for REASON, regexp in enumerate(RegExps): # REASON=0 (rbl) 1 (helo)
 				m = regexp.match(log_line) # applico le regexp
 				if m: # se combaciano
-					if not gia_bloccato(m.group(2)): # controllo che l'IP non sia gia' bloccato
+					if not gia_in_blocco(m.group(2)): # controllo che l'IP non sia gia' bloccato
 						IP, DNS, FROM, TO = m.group(2), m.group(1), m.group(3), m.group(4) # estrapolo i dati
 						if DNS == 'unknown': DNS = None
 						CIDR_dello_IP = fucklog_utils.is_already_mapped(IP) # controllo se l'IP appartiene ad una classe nota
 						if CIDR_dello_IP: # qui lavoro sulla CIDR
-							if gia_bloccato(CIDR_dello_IP): # controllo che la CIDR dell'IP non sia gia' bloccata
+							if gia_in_blocco(CIDR_dello_IP): # controllo che la CIDR dell'IP non sia gia' bloccata
 								continue
 							else:
 								indirizzo_da_bloccare = CIDR_dello_IP # ricavo il valore per iptables
@@ -309,7 +349,6 @@ def parse_log(Id):
 if __name__ == "__main__":
 	# Todo list:
 	# ricerca CIDR in tempo reale
-	# partenza dei servizi in automatico
 	# controllo per unica istanza in esecuzione
 
 	db = fucklog_utils.connetto_db()
@@ -329,7 +368,7 @@ if __name__ == "__main__":
 	#thread.start_new_thread(aggiorna_lasso,				(3, ))
 	#thread.start_new_thread(aggiorna_uce,				(4, ))
 	#thread.start_new_thread(pbl_expire,				(5, ))
-	thread.start_new_thread(aggiorna_pbl,				(6,	))
+	#thread.start_new_thread(aggiorna_pbl,				(6,	))
 
 	while True:
 		command = raw_input("What's up:")
@@ -339,7 +378,6 @@ if __name__ == "__main__":
 		if command == "s":
 			logit("Stats: "+str(today_ip_blocked)+"/"+str(all_ip_blocked)+'-'+str(len(list_of_iptables_chains)))
 			print "   Today IP / all IP blocked:", today_ip_blocked, "/",  all_ip_blocked,  ". Chains: ", len(list_of_iptables_chains)
-			print "   cached_ips size:",len(cached_ips)
 		if command == "f":
 			fucklog_utils.is_already_mapped('127.0.0.1',reset_cache=True)
 			print "Forzata rilettura della tabella di CIDR"

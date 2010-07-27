@@ -28,23 +28,6 @@ def connetto_db():
 	except:
 		logga('MySQL: Connessione al DB fallita','exit')
 
-def compatta_cbl():
-	# leggo /tmp/cbl e compatto in cidr ogni IP per riga
-	f = open('/tmp/cbl','r')
-
-	elencone = list([l[:-1] for l in f])
-	cidr = []
-
-	print len(elencone)
-
-	while elencone:
-		print "botta"
-		for ip in elencone[:10000]:
-			cidr.append(ip)
-		cidr = netaddr.cidr_merge(cidr)
-		print cidr
-		elencone = elencone[10000:]
-
 def geoip_from_ip(IP):
 	# ricevo un IP, torno la nazione o None
 	import pygeoip
@@ -57,26 +40,6 @@ def geoip_from_ip(IP):
 	except:
 		return None
 
-def get_cidr(category):
-	# ricevo la discriminante category (equivale alla colonna omonima in CIDR db)
-	# torno la lista delle cidr, e se Genera_Iptables è settato feeddo iptables
-
-	elenco_cidr = []
-	db = connetto_db()
-	db.execute("select CIDR from CIDR where CATEGORY=%s order by SIZE desc", (category,))
-
-	for cidr in netaddr.cidr_merge(list([row[0] for row in db.fetchall()])):
-			elenco_cidr.append(str(cidr))
-
-	if Genera_Iptables:
-		os.system("/sbin/iptables -N fuck-"+category+"-tmp")
-		for cidr in elenco_cidr:
-			os.system("/sbin/iptables -A fuck-"+category+"-tmp -s "+cidr+" --protocol tcp --dport 25 -j DROP")
-		for flag in ['F',  'X']: #chain flush and remove
-			os.system("/sbin/iptables -"+flag+" fuck-"+category)
-		os.system("/sbin/iptables -E fuck-"+category+"-tmp fuck-"+category)
-
-	return elenco_cidr
 
 def reverse_ip(IP):
 	# ricevo un IP 1.2.3.4 e lo torno girato 4.3.2.1
