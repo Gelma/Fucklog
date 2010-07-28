@@ -7,11 +7,6 @@ import netaddr, os, sys, socket, time, datetime, re, thread
 
 if True:
 	# Dati costanti
-	# MysqlDB
-	mysql_host, mysql_user, mysql_passwd, mysql_db = "localhost", "fucklog", "pattinaggio", "fucklog"
-	# GeoIP
-	geoip_db_file = "/opt/GeoIP/GeoLiteCity.dat"
-	geoip_db = False
 	# Flags opzioni
 	azione = None
 	Genera_Iptables = None
@@ -19,14 +14,6 @@ if True:
 	Cached_CIDRs = None
 	# Locks
 	lock_cached_cidrs = thread.allocate_lock()
-
-# funzioni ausiliarie
-def connetto_db():
-	import MySQLdb
-	try:
-		return MySQLdb.connect(host=mysql_host, user=mysql_user, passwd=mysql_passwd, db=mysql_db).cursor()
-	except:
-		logga('MySQL: Connessione al DB fallita','exit')
 
 def geoip_from_ip(IP):
 	# ricevo un IP, torno la nazione o None
@@ -145,9 +132,7 @@ def update_OS_worker(IP,date_from_db):
 def Update_OS():
 	# aggiorno OS->IP->FUCKLOG->MYSQL
 	# prendo gli IP piu' recenti, sfrutto nmap, cerco di individuarne il Sistema Operativo
-	
-	import time, threading
-	
+		
 	Ip_in_parallelo = 30
 	db = connetto_db()
 	
@@ -173,32 +158,6 @@ def Update_OS():
 		time.sleep(1800)
 
 	db.close()
-
-def Cristini():
-	# leggo il file di Necro
-
-	db = connetto_db()
-	filettone = open('/tmp/necro','r')
-
-	for line in filettone:
-		if line.startswith('#'): continue
-		line = line[:-1].split()
-		PBL = line[0]
-		CIDR = netaddr.IPNetwork(line[1])
-
-		try:
-			db.execute("delete from CIDR where CIDR=%s", (str(CIDR),))
-			db.execute("insert into CIDR (CIDR, NAME, SIZE, CATEGORY) values (%s,%s,%s,'pbl')", (str(CIDR), PBL, CIDR.size))
-		except:
-			print "Errore:",CIDR
-
-def Size_cidr(cidr):
-	# Dato un Network CIDR torno il numero di IP che lo compongono
-
-	try:
-		return netaddr.IPNetwork(cidr).size
-	except:
-		return None
 
 def Cidr_db_size():
 	# Aggiorno SIZE->CIDR->FUCKLOG->MYSQL
@@ -385,7 +344,6 @@ def logga(testo,peso=None):
 	if peso == "help":
 		print """
 Opzioni:
-	-c --cristini        Flusso di necro (da stdin)
 	-f --scanner	     *Trova IP vicini (discrimina per reverse lookup)
 	-g --geoloc-update   Aggiorna la geolocalizzazione in MySQL (capisce -k)
 	-h --help            *Help
@@ -404,14 +362,12 @@ if __name__ == "__main__":
 	import getopt
 	
 	try:
-		opts, args = getopt.getopt(sys.argv[1:], "cfghiknpstxz", ["cristini","scanner","geoloc-update","help","iptables-update","keepalive","clusterptr","pbl-in-iptables","size-cidr","totali","cidr_db_size","clean-ip"])
+		opts, args = getopt.getopt(sys.argv[1:], "fghiknpstxz", ["scanner","geoloc-update","help","iptables-update","keepalive","clusterptr","pbl-in-iptables","size-cidr","totali","cidr_db_size","clean-ip"])
 	except getopt.GetoptError:
 		logga('Main: opzioni non valide: '+sys.argv[1:],'exit')
 
 	for opt, a in opts:
-		if opt in ('-c', "--cristini"):
-			azione = "cristini"
-		elif opt in ('-g', "--geoloc-update"):
+		if opt in ('-g', "--geoloc-update"):
 			azione = "geoloc-update"
 		elif opt in ("-h", "--help"):
 			logga('','help')
@@ -438,9 +394,7 @@ if __name__ == "__main__":
 	if len(opts) == 0:
 		logga('', 'help')
 
-	if azione == "cristini":
-		Cristini()
-	elif azione == "cidr_db_size":
+	if azione == "cidr_db_size":
 		Cidr_db_size()
 	elif azione == "geoloc-update":
 		Geoloc_update()

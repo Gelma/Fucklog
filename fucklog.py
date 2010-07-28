@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import datetime, os, re, shelve, sys, thread, time, fucklog_utils, netaddr
+import datetime, fucklog_utils, MySQLdb, netaddr, os, re, shelve, sys, thread, threading, time
 
-if True:
-	# Global vars
+if True: # definizione variabili globali
+	mysql_host, mysql_user, mysql_passwd, mysql_db = "localhost", "fucklog", "pattinaggio", "fucklog"
 	interval = 10 # minutes
 	RegExps = [] # list of regular expressions to apply
 	RegExps.append(re.compile('.*RCPT from (.*)\[(.*)\]:.*blocked using.*from=<(.*)> to=<(.*)> proto')) # blacklist
@@ -16,6 +16,9 @@ if True:
 	lock_output_log_file = thread.allocate_lock()
 	lock_stats_update    = thread.allocate_lock()
 	lock_aggiorna_cidrarc= thread.allocate_lock()
+	# GeoIP
+	geoip_db_file = "/opt/GeoIP/GeoLiteCity.dat"
+	geoip_db = False
 	# Logfile
 	output_log_file = '/tmp/.fucklog_log_file.txt'
 	log_file = open(output_log_file,'a')
@@ -31,7 +34,7 @@ def aggiorna_cidrarc(Id=1):
 	lock_aggiorna_cidrarc.acquire()
 	logit('AggCidrarc: inizio')
 	cronometro = time.time()
-	db = fucklog_utils.connetto_db()
+	db = connetto_db()
 	db.execute('select CIDR from CIDR')
 	lista_cidrs_nuovi = set([c[0] for c in db.fetchall()])
 	logit('AggCidrarc: totale CIDR iniziali '+str(len(lista_cidrs_nuovi)))
@@ -71,7 +74,7 @@ def aggiorna_lasso(Id):
 			time.sleep(3600)
 			continue
 
-		db = fucklog_utils.connetto_db()
+		db = connetto_db()
 		db.execute("delete from CIDR where CATEGORY='lasso'")
 
 		for line in lassofile:
@@ -102,7 +105,7 @@ def aggiorna_uce(Id):
 		os.system('/usr/bin/rsync -aqz --no-motd --compress-level=9 rsync-mirrors.uceprotect.net::RBLDNSD-ALL/dnsbl-2.uceprotect.net /tmp/.dnsbl-2.uceprotect.net')
 		#variante con UCE3: os.system('/usr/bin/rsync -aPz --compress-level=9 rsync-mirrors.uceprotect.net::RBLDNSD-ALL/dnsbl-3.uceprotect.net /tmp/.dnsbl-3.uceprotect.net')
 		
-		db = fucklog_utils.connetto_db()
+		db = connetto_db()
 		db.execute("delete from CIDR where CATEGORY='uce'")
 
 		for line in os.popen("/bin/cat /tmp/.dnsbl-?.uceprotect.net"):
@@ -128,7 +131,7 @@ def aggiorna_pbl(Id):
 
 	while True:
 		logit('WebPBL: inizio')
-		db = fucklog_utils.connetto_db()
+		db = connetto_db()
 		db.execute("select URL, CIDR from PBLURL where CIDR is NOT null") # Prelevo le CIDR inserite via Web
 		for row in db.fetchall():
 			IP = row[0]
@@ -182,12 +185,22 @@ def aggiorna_pbl(Id):
 		db.close()
 		time.sleep(3600)
 
+def connetto_db():
+	"""Torno una connessione al DB MySQL"""
+	
+	try:
+		return MySQLdb.connect(host=mysql_host, user=mysql_user, passwd=mysql_passwd, db=mysql_db).cursor()
+	except:
+		logit('Connetto_db: errore nella connesione')
+		sys.exit(-1)
+
 def rimozione_ip_vecchi(Id):
 	"""Leggo Ip->Fucklog->MySQL e rimuovo gli IP che da più di 4 mesi non spammano (ripeto ogni 8 ore)"""
 	
 	while True:
 		time.sleep(28800)
-		db = fucklog_utils.connetto_db()
+		logit('RimozioneIP: inizio')
+		db = connetto_db()
 		db.execute('delete from IP where DATE < (CURRENT_TIMESTAMP() - INTERVAL 4 MONTH)')
 		db.close()
 	
@@ -202,7 +215,7 @@ def pbl_expire(Id):
 	while True:
 		logit('PBL Expire: inizio')
 		controllate = cancellate = 0
-		db = fucklog_utils.connetto_db()
+		db = connetto_db()
 		db.execute("select CIDR from CIDR  where CATEGORY='pbl' and LASTUPDATE < (CURRENT_TIMESTAMP() - INTERVAL 2 MONTH) order by RAND()")
 		elenco_cidr = db.fetchall()
 		if not elenco_cidr:
@@ -260,7 +273,7 @@ def gia_in_blocco(IP):
 	"""Accetto una stringa con IP/CIDR.
 	Restituisco Vero se l'IP è gia' bloccato in IPTABLES (controllando Blocked->Fucklog->MySQL)."""
 	
-	db = fucklog_utils.connetto_db()
+	db = connetto_db()
 	db.execute('select IP from BLOCKED where IP=%s', (IP,))
 	tmp = db.fetchone()
 	if tmp:
@@ -271,7 +284,7 @@ def gia_in_blocco(IP):
 def verifica_manuale_pbl(IP):
 	"""Ricevo un IP e lo metto in coda per la verifica via WEB (PblUrk->Fucklog->MySQL)"""
 	
-	db = fucklog_utils.connetto_db()
+	db = connetto_db()
 	try:
 		db.execute("insert into PBLURL (URL) values (%s)", (IP,))
 	except:
@@ -283,7 +296,7 @@ def blocca_in_iptables(indirizzo_da_bloccare, bloccalo_per):
 	Metto in IPTables e aggiorno Blocked->Fucklog->Mysql."""
 	
 	global today_ip_blocked, all_ip_blocked
-	db = fucklog_utils.connetto_db()
+	db = connetto_db()
 	
 	fino_al_timestamp = str( datetime.datetime.now() + datetime.timedelta(days=bloccalo_per) ) # calcolo il timestamp di fine
 	os.system("/sbin/iptables -A 'fucklog' -s "+indirizzo_da_bloccare+" --protocol tcp --dport 25 -j DROP")
@@ -297,7 +310,7 @@ def ip_gia_in_cidr(IP):
 	"""Ricevo un IP e torno la sua eventuale classe CIDR da CidrArc->Fucklog->Mysql"""
 	
 	IP = netaddr.IPAddress(IP)
-	db = fucklog_utils.connetto_db()
+	db = connetto_db()
 	db.execute('select CIDR from CIDRARC where IPSTART <=%s and IPEND >=%s', (int(IP), int(IP)))
 	IP = db.fetchone()
 	db.close()
@@ -358,10 +371,9 @@ def parse_log(Id):
 
 if __name__ == "__main__":
 	# Todo list:
-	# ricerca CIDR in tempo reale
 	# controllo per unica istanza in esecuzione
 
-	db = fucklog_utils.connetto_db()
+	db = connetto_db()
 
 	# Qui ci va il resume delle regole di IPTables
 	
@@ -388,6 +400,7 @@ if __name__ == "__main__":
 	#thread.start_new_thread(pbl_expire,				(5, ))
 	#thread.start_new_thread(aggiorna_pbl,				(6,	))
 	#thread.start_new_thread(rimozione_ip_vecchi			(7, ))
+	
 
 	while True:
 		command = raw_input("What's up:")
