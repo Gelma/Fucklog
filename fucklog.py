@@ -256,19 +256,6 @@ def update_stats():
 	file_mrtg_stats.flush()
 	lock_stats_update.release()
 
-def mrproper(Id):
-	global today_ip_blocked
-
-	while True:
-		# we calculate the number of seconds 'ntil the 23:59:59 of today
-		secs_of_sleep = ((datetime.datetime.now().replace(hour=23,minute=59,second=59) - datetime.datetime.now()).seconds)+10
-		#secs_of_sleep = 60 # temp
-		logit("MrProper: sleep for "+str(secs_of_sleep)+" seconds")
-		time.sleep(secs_of_sleep)
-		logit("MrProper: cleanup start")
-		today_ip_blocked = 0
-		fucklog_utils.geoip_db = False # Barbatrucco per forzare il refresh del DB di geolocalizzazione
-
 def gia_in_blocco(IP):
 	"""Accetto una stringa con IP/CIDR.
 	Restituisco Vero se l'IP è gia' bloccato in IPTABLES (controllando Blocked->Fucklog->MySQL)."""
@@ -393,15 +380,20 @@ if __name__ == "__main__":
 			print "Problema sul file di log", postfix_log_file
 			sys.exit(-1)
 	
-	#thread.start_new_thread(parse_log,					(1, ))
-	#thread.start_new_thread(mrproper,					(2, ))
 	#thread.start_new_thread(aggiorna_lasso,				(3, ))
 	#thread.start_new_thread(aggiorna_uce,				(4, ))
 	#thread.start_new_thread(pbl_expire,				(5, ))
 	#thread.start_new_thread(aggiorna_pbl,				(6,	))
 	#thread.start_new_thread(rimozione_ip_vecchi			(7, ))
+	#thread.start_new_thread(parse_log,					(10, ))
 	
-
+	# altre operazioni ciclicle
+	# calcolo quanto manca alla mezzanotte
+	# secs_of_sleep = ((datetime.datetime.now().replace(hour=23,minute=59,second=59) - datetime.datetime.now()).seconds)+10
+	# time.sleep(secs_of_sleep)
+	# today_ip_blocked = 0 # azzero il contatore giornaliero
+	# fucklog_utils.geoip_db = False # Barbatrucco per forzare il refresh del DB di geolocalizzazione
+	
 	while True:
 		command = raw_input("What's up:")
 		if command == "q":
