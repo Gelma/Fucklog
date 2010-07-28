@@ -123,7 +123,7 @@ def aggiorna_uce(Id):
 		db.close()
 		aggiorna_cidrarc()
 
-def aggiorna_pbl(id):
+def aggiorna_pbl(Id):
 	"""Controllo le CIDR di PBL inserite via web e le attivo (PblUrl->Fucklog->MySQL)"""
 
 	while True:
@@ -182,6 +182,15 @@ def aggiorna_pbl(id):
 		db.close()
 		time.sleep(3600)
 
+def rimozione_ip_vecchi(Id):
+	"""Leggo Ip->Fucklog->MySQL e rimuovo gli IP che da più di 4 mesi non spammano (ripeto ogni 8 ore)"""
+	
+	while True:
+		time.sleep(28800)
+		db = fucklog_utils.connetto_db()
+		db.execute('delete from IP where DATE < (CURRENT_TIMESTAMP() - INTERVAL 4 MONTH)')
+		db.close()
+	
 def pbl_expire(Id):
 	"""Controllo tutte le CIDR PBL più vecchie di due mesi, ed eventualmente le sego (Cidr->Fucklog->MySQL)"""
 
@@ -246,10 +255,6 @@ def mrproper(Id):
 		logit("MrProper: cleanup start")
 		today_ip_blocked = 0
 		fucklog_utils.geoip_db = False # Barbatrucco per forzare il refresh del DB di geolocalizzazione
-		# elimino tutti gli IP che non si sono ripresentati negli ultimi 4 mesi
-		db = fucklog_utils.connetto_db()
-		db.execute('delete from IP where DATE < (CURRENT_TIMESTAMP() - INTERVAL 4 MONTH)')
-		db.close()
 
 def gia_in_blocco(IP):
 	"""Accetto una stringa con IP/CIDR.
@@ -382,6 +387,7 @@ if __name__ == "__main__":
 	#thread.start_new_thread(aggiorna_uce,				(4, ))
 	#thread.start_new_thread(pbl_expire,				(5, ))
 	#thread.start_new_thread(aggiorna_pbl,				(6,	))
+	#thread.start_new_thread(rimozione_ip_vecchi			(7, ))
 
 	while True:
 		command = raw_input("What's up:")
