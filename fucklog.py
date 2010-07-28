@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import datetime, fucklog_utils, MySQLdb, netaddr, os, re, shelve, sys, thread, threading, time
+import datetime, fucklog_utils, MySQLdb, netaddr, os, random, re, shelve, sys, thread, threading, time, urllib
 
 if True: # definizione variabili globali
 	mysql_host, mysql_user, mysql_passwd, mysql_db = "localhost", "fucklog", "pattinaggio", "fucklog"
@@ -15,7 +15,7 @@ if True: # definizione variabili globali
 	# Locks
 	lock_output_log_file = thread.allocate_lock()
 	lock_stats_update    = thread.allocate_lock()
-	lock_aggiorna_cidrarc= thread.allocate_lock()
+	lock_cidrarc= thread.allocate_lock()
 	# GeoIP
 	geoip_db_file = "/opt/GeoIP/GeoLiteCity.dat"
 	geoip_db = False
@@ -25,44 +25,45 @@ if True: # definizione variabili globali
 	# MRTG files
 	file_mrtg_stats = open("/tmp/.fucklog_mrtg", 'w')
 
-def aggiorna_cidrarc(Id=1):
+def aggiorna_cidrarc():
 	"""Prendo il contenuto di Cidr->Fucklog->MySQL e ottimizzo, infilando il risultato in CidrArc->Fucklog-MySQL"""
 	
-	if lock_aggiorna_cidrarc:
+	if lock_cidrarc.locked():
+		logit('AggCidrarc: processo gia\' in esecuzione, tralascio.')
 		return
 	
-	lock_aggiorna_cidrarc.acquire()
+	lock_cidrarc.acquire()
 	logit('AggCidrarc: inizio')
 	cronometro = time.time()
 	db = connetto_db()
-	db.execute('select CIDR from CIDR')
+	db.execute('(select INET_NTOA(IP) from IP) UNION (SELECT CIDR from CIDR)') # Unisco e le CIDR e i singoli IP
 	lista_cidrs_nuovi = set([c[0] for c in db.fetchall()])
 	logit('AggCidrarc: totale CIDR iniziali '+str(len(lista_cidrs_nuovi)))
 	lista_cidrs_nuovi = set(netaddr.cidr_merge(lista_cidrs_nuovi))
 	logit('AggCidrarc: totale CIDR finali '+str(len(lista_cidrs_nuovi)))
-	
 	db.execute('select CIDR from CIDRARC')
 	lista_cidrs_vecchi = set([netaddr.IPNetwork(c[0]) for c in db.fetchall()])
-			
-	for cidr in lista_cidrs_nuovi: # solo in nuovi, aggiungo
-		if cidr not in lista_cidrs_vecchi:
-			logit('AggCidrarc: aggiungo '+cidr)
-			cidr = netaddr.IPNetwork(cidr)
-			db.execute('insert into CIDRARC (CIDR, IPSTART, IPEND, SIZE) values (%s, %s, %s, %s)', (cidr, int(cidr[0]), int(cidr[-1]), cidr.size))
 
-	for cidr in lista_cidrs_vecchi: # solo in vecchi, cancello
+	controllo_modifica = 0
+	
+	for cidr in lista_cidrs_nuovi: # aggiungo i nuovi
+		if cidr not in lista_cidrs_vecchi:
+			cidr = netaddr.IPNetwork(cidr)
+			if cidr.size != 1: # non voglio le classi /32
+				logit('AggCidrarc: aggiungo '+str(cidr))
+				db.execute('insert into CIDRARC (CIDR, IPSTART, IPEND, SIZE) values (%s, %s, %s, %s)', (cidr, int(cidr[0]), int(cidr[-1]), cidr.size))
+
+	for cidr in lista_cidrs_vecchi: # cancello i vecchi
 		if cidr not in lista_cidrs_nuovi:
-			logit('AggCidrarc: rimuovo '+cidr)
+			logit('AggCidrarc: rimuovo '+str(cidr))
 			db.execute('delete from CIDRARC where CIDR=%s', (cidr,))
 
 	db.close()
 	logit('AggCidrarc: completato in '+str(time.time() - cronometro)+' secondi')
-	lock_aggiorna_cidrarc.release()
+	lock_cidrarc.release()
 	
 def aggiorna_lasso(Id):
 	"""Prelevo la lista Lasso e aggiorno Cidr->Fucklog->Mysql"""
-	
-	import urllib
 	
 	while True:
 		time.sleep(129600) # aggiorna dopo 36 ore
@@ -102,9 +103,12 @@ def aggiorna_uce(Id):
 		time.sleep(90000) # aggiorna ogni 25 ore
 		logit('UCE: aggiornamento '+str(datetime.datetime.now()))
 
-		os.system('/usr/bin/rsync -aqz --no-motd --compress-level=9 rsync-mirrors.uceprotect.net::RBLDNSD-ALL/dnsbl-2.uceprotect.net /tmp/.dnsbl-2.uceprotect.net')
 		#variante con UCE3: os.system('/usr/bin/rsync -aPz --compress-level=9 rsync-mirrors.uceprotect.net::RBLDNSD-ALL/dnsbl-3.uceprotect.net /tmp/.dnsbl-3.uceprotect.net')
-		
+		returncode = os.system('/usr/bin/rsync -aqz --no-motd --compress-level=9 rsync-mirrors.uceprotect.net::RBLDNSD-ALL/dnsbl-2.uceprotect.net /tmp/.dnsbl-2.uceprotect.net')
+		if returncode != 0:
+			logit('UCE: errore con rsync')
+			continue
+				
 		db = connetto_db()
 		db.execute("delete from CIDR where CATEGORY='uce'")
 
@@ -130,6 +134,7 @@ def aggiorna_pbl(Id):
 	"""Controllo le CIDR di PBL inserite via web e le attivo (PblUrl->Fucklog->MySQL)"""
 
 	while True:
+		time.sleep(3600)
 		logit('WebPBL: inizio')
 		db = connetto_db()
 		db.execute("select URL, CIDR from PBLURL where CIDR is NOT null") # Prelevo le CIDR inserite via Web
@@ -166,8 +171,7 @@ def aggiorna_pbl(Id):
 			except:
 				logit("WebPBL: fallito inserimento "+CIDR)
 			db.execute("delete from PBLURL where URL=%s",(IP,))
-			
-		
+
 		# ripeto il controllo su tutti gli IP rimasti
 		db.execute("select URL from PBLURL where CIDR is null")
 		for row in db.fetchall():
@@ -181,9 +185,7 @@ def aggiorna_pbl(Id):
 			if ip_gia_in_cidr(IP):
 				logit("WebPBL: gia' mappato "+IP)
 				db.execute("delete from PBLURL where URL=%s",(IP,))
-
 		db.close()
-		time.sleep(3600)
 
 def connetto_db():
 	"""Torno una connessione al DB MySQL"""
@@ -198,53 +200,56 @@ def rimozione_ip_vecchi(Id):
 	"""Leggo Ip->Fucklog->MySQL e rimuovo gli IP che da più di 4 mesi non spammano (ripeto ogni 8 ore)"""
 	
 	while True:
-		time.sleep(28800)
+		time.sleep(28800) # ogni 8 ore
 		logit('RimozioneIP: inizio')
 		db = connetto_db()
-		db.execute('delete from IP where DATE < (CURRENT_TIMESTAMP() - INTERVAL 4 MONTH)')
+		db.execute('select count(*) from IP where DATE < (CURRENT_TIMESTAMP() - INTERVAL 4 MONTH)')
+		tmp = db.fetchone()
+		if tmp[0] != 0: # ho IP da eliminare
+			logit('RimozioneIP: rimossi '+str(tmp[0])+' IP')
+			db.execute('delete from IP where DATE < (CURRENT_TIMESTAMP() - INTERVAL 4 MONTH)')
+			aggiorna_cidrarc()
 		db.close()
 	
 def pbl_expire(Id):
 	"""Controllo tutte le CIDR PBL più vecchie di due mesi, ed eventualmente le sego (Cidr->Fucklog->MySQL)"""
-
-	import random
 	
 	dadi = random.SystemRandom()
 	pausa_tra_le_query = 23 # numero di secondi tra un query e l'altra. in questo modo sono poco più di 3700 query al giorno
-		
+	
+	time.sleep(120) # per evitare lo storm iniziale
+	
 	while True:
 		logit('PBL Expire: inizio')
-		controllate = cancellate = 0
+		cidr_controllate = cidr_cancellate = 0
 		db = connetto_db()
-		db.execute("select CIDR from CIDR  where CATEGORY='pbl' and LASTUPDATE < (CURRENT_TIMESTAMP() - INTERVAL 2 MONTH) order by RAND()")
+		db.execute("select CIDR from CIDR where CATEGORY='pbl' and LASTUPDATE < (CURRENT_TIMESTAMP() - INTERVAL 2 MONTH) order by RAND()")
 		elenco_cidr = db.fetchall()
 		if not elenco_cidr:
 			logit('PBL Expire: nessuna voce da controllare. Riprovo tra 24 ore')
 			db.close()
 			time.sleep(86400)
 		else:
-			for CIDR in elenco_cidr: # per ogni CIDR
-				logit('PBL Expire: controllo '+CIDR[0])
-				controllate = controllate + 1 # incremento il numero di voci controllat
+			for CIDR in elenco_cidr:
+				cidr_controllate += 1 # incremento il numero di voci controllate
 				CIDR = netaddr.IPNetwork(CIDR[0])
 				ip_to_test = CIDR[dadi.randint(0, CIDR.size - 1)] # estraggo un IP a caso della CIDR
-				if not fucklog_utils.is_pbl(ip_to_test): # se non risulta più in PBL
-					cancellate = cancellate + 1 # incremento le voci cancellate
-					logit('PBL Expire: elimino '+str(CIDR)+' - controllate: '+str(controllate)+' - cancellate: '+str(cancellate))
+				if not ip_gia_in_cidr(ip_to_test): # se non risulta più in PBL
+					cidr_cancellate += 1 # incremento le voci cancellate
+					logit('PBL Expire: elimino '+str(CIDR)+' - controllate: '+str(cidr_controllate)+' - cancellate: '+str(cidr_cancellate))
 					db.execute("delete from CIDR where CIDR=%s", (CIDR,))
-					thread.start_new_thread(aggiorna_cidrarc(), (1, ))
+					# qui ci andrebbe l'aggiornamento di CIDRARC
 				else:
 					db.execute("update CIDR set LASTUPDATE=CURRENT_TIMESTAMP where CIDR=%s", (CIDR,))
 				time.sleep(pausa_tra_le_query)
 
 def logit(text):
 	lock_output_log_file.acquire()
-	now = datetime.datetime.now()
-	log_file.write(now.strftime('%H:%M:%S')+" - "+text+'\n')
+	log_file.write(datetime.datetime.now().strftime('%H:%M:%S')+" "+text+'\n')
 	log_file.flush()
 	lock_output_log_file.release()
 
-def update_stats():
+def update_stats(): #rifare
 	global today_ip_blocked, all_ip_blocked
 
 	lock_stats_update.acquire()
@@ -257,8 +262,7 @@ def update_stats():
 	lock_stats_update.release()
 
 def gia_in_blocco(IP):
-	"""Accetto una stringa con IP/CIDR.
-	Restituisco Vero se l'IP è gia' bloccato in IPTABLES (controllando Blocked->Fucklog->MySQL)."""
+	"""Ricevo un IP/CIDR. Restituisco Vero se l'IP è gia' bloccato in IPTABLES (controllando Blocked->Fucklog->MySQL)."""
 	
 	db = connetto_db()
 	db.execute('select IP from BLOCKED where IP=%s', (IP,))
@@ -268,8 +272,8 @@ def gia_in_blocco(IP):
 	else:
 		return False
 	
-def verifica_manuale_pbl(IP):
-	"""Ricevo un IP e lo metto in coda per la verifica via WEB (PblUrk->Fucklog->MySQL)"""
+def verifica_manuale_pbl(IP): 
+	"""Ricevo un IP e lo metto in coda per la verifica via WEB (PblUrl->Fucklog->MySQL)"""
 	
 	db = connetto_db()
 	try:
@@ -278,9 +282,8 @@ def verifica_manuale_pbl(IP):
 		pass
 	os.system("echo 'http://mail.gelma.net/pbl_check.php'|mail -s 'cekka "+IP+"' andrea.gelmini@gmail.com")
 
-def blocca_in_iptables(indirizzo_da_bloccare, bloccalo_per):
-	"""Ricevo IP e numero di giorni.
-	Metto in IPTables e aggiorno Blocked->Fucklog->Mysql."""
+def blocca_in_iptables(indirizzo_da_bloccare, bloccalo_per): #testare
+	"""Ricevo IP e numero di giorni. Metto in IPTables e aggiorno Blocked->Fucklog->Mysql"""
 	
 	global today_ip_blocked, all_ip_blocked
 	db = connetto_db()
@@ -306,7 +309,7 @@ def ip_gia_in_cidr(IP):
 	else:
 		return False
 
-def parse_log(Id):
+def parse_log(Id): #testare
 	global db, today_ip_blocked, all_ip_blocked
 
 	while True:
@@ -380,13 +383,13 @@ if __name__ == "__main__":
 			print "Problema sul file di log", postfix_log_file
 			sys.exit(-1)
 	
-	#thread.start_new_thread(aggiorna_lasso,				(3, ))
-	#thread.start_new_thread(aggiorna_uce,				(4, ))
-	#thread.start_new_thread(pbl_expire,				(5, ))
-	#thread.start_new_thread(aggiorna_pbl,				(6,	))
-	#thread.start_new_thread(rimozione_ip_vecchi			(7, ))
+	thread.start_new_thread(aggiorna_lasso,				(1, ))
+	thread.start_new_thread(aggiorna_pbl,				(2,	))
+	thread.start_new_thread(aggiorna_uce,				(3, ))
+	thread.start_new_thread(pbl_expire,					(4, ))
+	thread.start_new_thread(rimozione_ip_vecchi			(5, ))
 	#thread.start_new_thread(parse_log,					(10, ))
-	
+
 	# altre operazioni ciclicle
 	# calcolo quanto manca alla mezzanotte
 	# secs_of_sleep = ((datetime.datetime.now().replace(hour=23,minute=59,second=59) - datetime.datetime.now()).seconds)+10
