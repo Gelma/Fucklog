@@ -15,42 +15,6 @@ if True:
 	# Locks
 	lock_cached_cidrs = thread.allocate_lock()
 
-def geoip_from_ip(IP):
-	# ricevo un IP, torno la nazione o None
-	import pygeoip
-	global geoip_db
-
-	if geoip_db is False:
-		geoip_db = pygeoip.GeoIP(geoip_db_file)
-	try:
-		return geoip_db.country_name_by_addr(IP)
-	except:
-		return None
-
-
-def reverse_ip(IP):
-	# ricevo un IP 1.2.3.4 e lo torno girato 4.3.2.1
-
-	IP = IP.split('.')
-	IP.reverse()
-	return '.'.join(IP)
-
-def is_pbl(IP):
-	# ricevo un IP. Torno False se non in pbl.spamhaus.org
-	# torno il link diversamente
-
-	import dns.resolver, dns.reversename
-	IP = str(IP)
-	
-	qstr = "%s.pbl.spamhaus.org." % reverse_ip(IP)
-	try:
-		qa = dns.resolver.query(qstr, 'TXT')
-	except dns.exception.DNSException:
-		return False
-	for rr in qa:
-		for s in rr.strings:
-			return s
-
 def iptables_to_nat():
 	# prendo tutti gli IP bloccati da fucklog e li metto nel nat per la redirezione della 25 verso la 25000
 	# smtp-sink -4 -c -d "%Y%m%d%H%M." -u check -R /home/gelma.net/check/SpoolSpam/new/ -h li61-168.members.linode.com. 25000 512

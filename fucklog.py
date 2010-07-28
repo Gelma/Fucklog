@@ -1,29 +1,26 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import datetime, fucklog_utils, MySQLdb, netaddr, os, random, re, shelve, sys, thread, threading, time, urllib
+import datetime, dns.resolver, dns.reversename, MySQLdb, netaddr, os, pygeoip, random, re, shelve, sys, thread, threading, time, urllib
 
 if True: # definizione variabili globali
 	mysql_host, mysql_user, mysql_passwd, mysql_db = "localhost", "fucklog", "pattinaggio", "fucklog"
-	interval = 10 # minutes
-	RegExps = [] # list of regular expressions to apply
+	interval 				= 7 # minutes
+	RegExps 				= [] # list of regular expressions to apply
 	RegExps.append(re.compile('.*RCPT from (.*)\[(.*)\]:.*blocked using.*from=<(.*)> to=<(.*)> proto')) # blacklist
 	RegExps.append(re.compile('.*NOQUEUE: reject: RCPT from (.*)\[(.*)\].*Helo command rejected: need fully-qualified hostname; from=<(.*)> to=<(.*)> proto')) # broken helo
-	list_of_iptables_chains = {}
-	postfix_log_file = "/var/log/everything/current"
-	# Statistics
-	today_ip_blocked = all_ip_blocked = 0
+	postfix_log_file 		= "/var/log/everything/current"
+	Debug 					= False
 	# Locks
-	lock_output_log_file = thread.allocate_lock()
-	lock_stats_update    = thread.allocate_lock()
-	lock_cidrarc= thread.allocate_lock()
+	lock_output_log_file	= thread.allocate_lock()
+	lock_cidrarc			= thread.allocate_lock()
 	# GeoIP
-	geoip_db_file = "/opt/GeoIP/GeoLiteCity.dat"
-	geoip_db = False
+	geoip_db_file 			= "/opt/GeoIP/GeoLiteCity.dat"
+	geoip_db 				= False
 	# Logfile
-	output_log_file = '/tmp/.fucklog_log_file.txt'
-	log_file = open(output_log_file,'a')
+	output_log_file 		= '/tmp/.log_file_fucklog.txt'
+	log_file 				= open(output_log_file,'a')
 	# MRTG files
-	file_mrtg_stats = open("/tmp/.fucklog_mrtg", 'w')
+	file_mrtg_stats			= open("/tmp/.fucklog_mrtg", 'w')
 
 def aggiorna_cidrarc():
 	"""Prendo il contenuto di Cidr->Fucklog->MySQL e ottimizzo, infilando il risultato in CidrArc->Fucklog-MySQL"""
@@ -44,8 +41,6 @@ def aggiorna_cidrarc():
 	db.execute('select CIDR from CIDRARC')
 	lista_cidrs_vecchi = set([netaddr.IPNetwork(c[0]) for c in db.fetchall()])
 
-	controllo_modifica = 0
-	
 	for cidr in lista_cidrs_nuovi: # aggiungo i nuovi
 		if cidr not in lista_cidrs_vecchi:
 			cidr = netaddr.IPNetwork(cidr)
@@ -94,7 +89,6 @@ def aggiorna_lasso(Id):
 		del lassofile
 
 		db.close()
-		aggiorna_cidrarc()
 
 def aggiorna_uce(Id):
 	"""Aggiorno la lista UCE2 in Cidr->Fucklog->MySQL"""
@@ -128,7 +122,6 @@ def aggiorna_uce(Id):
 				logit('UCE: errore db con '+line)
 		
 		db.close()
-		aggiorna_cidrarc()
 
 def aggiorna_pbl(Id):
 	"""Controllo le CIDR di PBL inserite via web e le attivo (PblUrl->Fucklog->MySQL)"""
@@ -167,7 +160,6 @@ def aggiorna_pbl(Id):
 
 			try: # tutto ok, quindi inserisco
 				db.execute("insert into CIDR (CIDR, SIZE, CATEGORY) values (%s,%s,'pbl')", (CIDR, CIDR.size))
-				aggiorna_cidrarc()
 			except:
 				logit("WebPBL: fallito inserimento "+CIDR)
 			db.execute("delete from PBLURL where URL=%s",(IP,))
@@ -200,7 +192,7 @@ def rimozione_ip_vecchi(Id):
 	"""Leggo Ip->Fucklog->MySQL e rimuovo gli IP che da più di 4 mesi non spammano (ripeto ogni 8 ore)"""
 	
 	while True:
-		time.sleep(28800) # ogni 8 ore
+		time.sleep(7200) # ogni 2 ore
 		logit('RimozioneIP: inizio')
 		db = connetto_db()
 		db.execute('select count(*) from IP where DATE < (CURRENT_TIMESTAMP() - INTERVAL 4 MONTH)')
@@ -208,9 +200,8 @@ def rimozione_ip_vecchi(Id):
 		if tmp[0] != 0: # ho IP da eliminare
 			logit('RimozioneIP: rimossi '+str(tmp[0])+' IP')
 			db.execute('delete from IP where DATE < (CURRENT_TIMESTAMP() - INTERVAL 4 MONTH)')
-			aggiorna_cidrarc()
 		db.close()
-	
+
 def pbl_expire(Id):
 	"""Controllo tutte le CIDR PBL più vecchie di due mesi, ed eventualmente le sego (Cidr->Fucklog->MySQL)"""
 	
@@ -243,23 +234,47 @@ def pbl_expire(Id):
 					db.execute("update CIDR set LASTUPDATE=CURRENT_TIMESTAMP where CIDR=%s", (CIDR,))
 				time.sleep(pausa_tra_le_query)
 
+def rimozione_iptables(Id):
+	"""A cadenza oraria rimuovo il blocco di IPTables"""
+	
+	db = connetto_db()
+	
+	while True:
+		time.sleep(3600)
+		db.execute('select IP from BLOCKED where END < CURRENT_TIMESTAMP()')
+		for IP in db.fetchall():
+			IP = IP[0]
+			db.execute('delete from BLOCKED where IP=%s', (IP,))
+			os.system("/sbin/iptables -D 'fucklog' -s "+IP+" --protocol tcp --dport 25 -j DROP")
+			logit('RimozioneIPtables: segato '+str(IP))
+
 def logit(text):
 	lock_output_log_file.acquire()
 	log_file.write(datetime.datetime.now().strftime('%H:%M:%S')+" "+text+'\n')
 	log_file.flush()
 	lock_output_log_file.release()
 
-def update_stats(): #rifare
-	global today_ip_blocked, all_ip_blocked
-
-	lock_stats_update.acquire()
-	file_mrtg_stats.seek(0)
-	file_mrtg_stats.truncate(0)
-	file_mrtg_stats.write(str(all_ip_blocked)+'\n'+str(today_ip_blocked)+'\n')
-	file_mrtg_stats.write(str(today_ip_blocked)+'/'+str(all_ip_blocked)+'\n')
-	file_mrtg_stats.write('spam\n')
-	file_mrtg_stats.flush()
-	lock_stats_update.release()
+def statistiche_mrtg(Id):
+	"""Aggiorno a cadenza fissa le statistiche per MRTG"""
+	
+	db = connetto_db()
+	
+	while True:
+		db.execute("select count(*) from BLOCKED where CAST(BEGIN AS DATE)=CURDATE()") # ricavo gli IP di oggi
+		tmp = db.fetchone()
+		ip_di_oggi = str(tmp[0])
+		
+		db.execute("select count(*) from BLOCKED")
+		tmp = db.fetchone()
+		ip_totali = str(tmp[0])
+		
+		file_mrtg_stats.seek(0)
+		file_mrtg_stats.truncate(0)
+		file_mrtg_stats.write(ip_totali+'\n'+ip_di_oggi+'\n')
+		file_mrtg_stats.write(ip_di_oggi+'/'+ip_totali+'\n')
+		file_mrtg_stats.write('spam\n')
+		file_mrtg_stats.flush()
+		time.sleep(9*60)
 
 def gia_in_blocco(IP):
 	"""Ricevo un IP/CIDR. Restituisco Vero se l'IP è gia' bloccato in IPTABLES (controllando Blocked->Fucklog->MySQL)."""
@@ -282,19 +297,14 @@ def verifica_manuale_pbl(IP):
 		pass
 	os.system("echo 'http://mail.gelma.net/pbl_check.php'|mail -s 'cekka "+IP+"' andrea.gelmini@gmail.com")
 
-def blocca_in_iptables(indirizzo_da_bloccare, bloccalo_per): #testare
+def blocca_in_iptables(indirizzo_da_bloccare, bloccalo_per):
 	"""Ricevo IP e numero di giorni. Metto in IPTables e aggiorno Blocked->Fucklog->Mysql"""
 	
-	global today_ip_blocked, all_ip_blocked
 	db = connetto_db()
 	
-	fino_al_timestamp = str( datetime.datetime.now() + datetime.timedelta(days=bloccalo_per) ) # calcolo il timestamp di fine
+	fino_al_timestamp = str( datetime.datetime.now() + datetime.timedelta(hours = 12 * bloccalo_per) ) # calcolo il timestamp di fine
 	os.system("/sbin/iptables -A 'fucklog' -s "+indirizzo_da_bloccare+" --protocol tcp --dport 25 -j DROP")
-	
 	db.execute("insert into BLOCKED (IP, END) values (%s, %s)", (indirizzo_da_bloccare, fino_al_timestamp))
-
-	today_ip_blocked += 1
-	all_ip_blocked   += 1
 
 def ip_gia_in_cidr(IP):
 	"""Ricevo un IP e torno la sua eventuale classe CIDR da CidrArc->Fucklog->Mysql"""
@@ -309,73 +319,114 @@ def ip_gia_in_cidr(IP):
 	else:
 		return False
 
-def parse_log(Id): #testare
-	global db, today_ip_blocked, all_ip_blocked
+def ip_in_pbl(IP):
+	"""Accetto un IP. Torno Url/False se l'IP è in PBL"""
+	
+	qstr = "%s.pbl.spamhaus.org." % '.'.join(reversed(IP.split('.'))) # hack per girare IP: 1.2.3.4 -> 4.3.2.1
+	try:
+		qa = dns.resolver.query(qstr, 'TXT')
+	except dns.exception.DNSException:
+		return False
+	for rr in qa:
+		for s in rr.strings:
+			return s
+
+def nazione_dello_ip(IP):
+	"""Ricevo un IP, ne torno la nazione"""
+
+	global geoip_db
+
+	if geoip_db is False:
+		geoip_db = pygeoip.GeoIP(geoip_db_file)
+	try:
+		return geoip_db.country_name_by_addr(IP)
+	except:
+		return None
+
+def lettore(Id):
+	global db
 
 	while True:
+		logit('Log: nuovo giro')
+		cronometro = time.time()
 		for log_line in os.popen(grep_command):
 			for REASON, regexp in enumerate(RegExps): # REASON=0 (rbl) 1 (helo)
 				m = regexp.match(log_line) # applico le regexp
 				if m: # se combaciano
 					if not gia_in_blocco(m.group(2)): # controllo che l'IP non sia gia' bloccato
 						IP, DNS, FROM, TO = m.group(2), m.group(1), m.group(3), m.group(4) # estrapolo i dati
+						if Debug: logit('Log: '+IP+' non bloccato')
 						if DNS == 'unknown': DNS = None
 						CIDR_dello_IP = ip_gia_in_cidr(IP) # controllo se l'IP appartiene ad una classe nota
-						if CIDR_dello_IP: # qui lavoro sulla CIDR
+						if CIDR_dello_IP: # se è di classe nota
+							if Debug: logit('Log: '+IP+' è di una classe nota')
 							if gia_in_blocco(CIDR_dello_IP): # controllo che la CIDR dell'IP non sia gia' bloccata
+								if Debug: logit('Log: '+IP+' risulta la sua CIDR gia\' in iptables')
 								continue
-							else:
-								indirizzo_da_bloccare = CIDR_dello_IP # ricavo il valore per iptables
-								db.execute('select COUNTER from CIDR where CIDR=%s', (CIDR_dello_IP,)) # ricavo fino a quando bloccarlo
+							else: # se non è gia' bloccato
+								db.execute('select COUNTER from CIDRARC where CIDR=%s', (CIDR_dello_IP,)) # ricavo fino a quando bloccarlo
 								tmp = db.fetchone()
-								if tmp:
-									bloccalo_per = tmp[0] + 1
-								else:
-									bloccalo_per = 1
-								try: # aggiorno il blocco nel DB
-									db.execute("update CIDR set counter=%s where CIDR=%s", (bloccalo_per, CIDR_dello_IP))
+								if tmp: bloccalo_per = tmp[0] + 1
+								else: bloccalo_per = 1
+								try: # aggiorno il contatore nel DB
+									db.execute("update CIDRARC set counter=%s where CIDR=%s", (bloccalo_per, CIDR_dello_IP))
 								except:
-									pass								
-						else: # qui lavoro sul singolo IP
-							#riattiva il controllo seguente
-							if fucklog_utils.is_pbl(IP): # diversamente continuo il lavoro sul singolo IP, che se fa parte di una CIDR PBL non nota, viene accodato per l'inserimento manuale
+									logit('Log: problema aggiornamento CIDR '+CIDR_dello_IP)
+								indirizzo_da_bloccare = CIDR_dello_IP # definisco l'IP da bloccare
+								if Debug: logit('Log: '+IP+' blocco la CIDR '+str(indirizzo_da_bloccare)+' con moltiplicatore '+str(bloccalo_per))
+								try: # ma aggiorno anche il singolo IP nell'elenco IP, per avere chi ha innescato la CIDR
+									db.execute("insert into IP (IP, DNS, FROOM, TOO, REASON, LINE, GEOIP) values (INET_ATON(%s), %s, %s, %s, %s, %s, %s)", (IP, DNS, FROM, TO, REASON, log_line, nazione_dello_ip(IP)))
+								except db.IntegrityError:
+									db.execute("update IP set DNS=%s, FROOM=%s, TOO=%s, REASON=%s, LINE=%s, counter=counter+1, DATE=CURRENT_TIMESTAMP where IP=INET_ATON(%s)", (DNS, FROM, TO, REASON, log_line, IP))								
+						else: # se non ricado in nessuna classe nota, opero sulla singola voce
+							if ip_in_pbl(IP): # se risulta in PBL, ma non nelle CIDR, accodo per il controllo manuale
+								if Debug: logit('Log: '+IP+' risulta in PBL. Lo accodo per il web')
 								verifica_manuale_pbl(IP)
-							# ricavo per quante volte è gia' stato bloccato
-							db.execute('select COUNTER from IP where IP=INET_ATON(%s)', (IP,))
+							db.execute('select COUNTER from IP where IP=INET_ATON(%s)', (IP,)) # ricavo fino a quando bloccarlo
 							tmp = db.fetchone()
-							if tmp:
-								bloccalo_per = tmp[0] + 1
-							else:
-								bloccalo_per = 1
-							# aggiorno contatore in MySQL (Ip->Fucklog->MySql)
-							try:
-								db.execute("insert into IP (IP, DNS, FROOM, TOO, REASON, LINE, GEOIP) values (INET_ATON(%s), %s, %s, %s, %s, %s, %s)", (IP, DNS, FROM, TO, REASON, log_line, fucklog_utils.geoip_from_ip(IP)))
+							if tmp: bloccalo_per = tmp[0] + 1
+							else: bloccalo_per = 1
+							try: # aggiorno contatore in MySQL (Ip->Fucklog->MySql)
+								db.execute("insert into IP (IP, DNS, FROOM, TOO, REASON, LINE, GEOIP) values (INET_ATON(%s), %s, %s, %s, %s, %s, %s)", (IP, DNS, FROM, TO, REASON, log_line, nazione_dello_ip(IP)))
 							except db.IntegrityError:
 								db.execute("update IP set DNS=%s, FROOM=%s, TOO=%s, REASON=%s, LINE=%s, counter=counter+1, DATE=CURRENT_TIMESTAMP where IP=INET_ATON(%s)", (DNS, FROM, TO, REASON, log_line, IP))
 							indirizzo_da_bloccare = IP
+						if Debug: logit('Log: '+IP+' bloccato con moltiplicatore '+str(bloccalo_per))
 						blocca_in_iptables(indirizzo_da_bloccare, bloccalo_per)
 						TReason = 'HELO' if REASON else 'RBL'
-						logit("Parse: "+indirizzo_da_bloccare+'|'+str(bloccalo_per)+'|'+str(DNS)+'|'+FROM+'|'+TO+'|'+TReason)
-		update_stats()
+						logit("Log: "+indirizzo_da_bloccare+'|'+str(bloccalo_per)+'|'+str(DNS)+'|'+FROM+'|'+TO+'|'+TReason)
+		logit('Log: controllato in '+str(time.time() - cronometro)+' secondi')
 		time.sleep(60*interval)
+
+def forza_cidrarc(Id):
+	"""Forzo l'aggiornamento ogni 4 ore"""
+	
+	while True:
+		time.sleep(60*60*4)
+		logit("ForzaCidrarc: inizio")
+		aggiorna_cidrarc()
 
 if __name__ == "__main__":
 	# Todo list:
 	# controllo per unica istanza in esecuzione
-
+	# rigenerazione sensata di CIDRARC
+	# autopartenza logger
+	
 	db = connetto_db()
-
-	# Qui ci va il resume delle regole di IPTables
 	
-	for flag in ['F', 'X']: # chain flush and remove
-		os.system("/sbin/iptables -"+flag+" fucklog")
-	os.system("/sbin/iptables -N fucklog")
+	if True: # ripristino delle regole di IpTables
+		logit('Ripristino Iptables: iniziato')
+		db.execute('delete from BLOCKED where END < CURRENT_TIMESTAMP()') # disintegro le regole scadute nel frattempo
+		os.system("/sbin/iptables -N tmp-fucklog") # creo la catena temporanea
+		os.system("/sbin/iptables -F tmp-fucklog") # e la svuoto
+		db.execute('select IP from BLOCKED order by END') # la popolo
+		for IP in db.fetchall(): os.system("/sbin/iptables -A 'tmp-fucklog' -s "+IP[0]+" --protocol tcp --dport 25 -j DROP")
+		for flag in ['F', 'X']: os.system("/sbin/iptables -"+flag+" fucklog") # Elimino la catena fucklog
+		os.system("/sbin/iptables -E tmp-fucklog fucklog") # e rinomino tmp-fucklog in fucklog
 
-	# sego tutte le voci più vecchie di ora
-	# conto il numero totale di regole
-	# conto le regole attivate oggi
+	aggiorna_cidrarc() # aggiorna tutte le voci nel DB
 	
-	if True: # controllo il file di log
+	if True: # controllo validita' del file di log
 		if os.path.isfile(postfix_log_file):
 			grep_command = "/bin/grep --mmap -E '(fully-qualified|blocked)' " + postfix_log_file
 		else:
@@ -383,25 +434,19 @@ if __name__ == "__main__":
 			print "Problema sul file di log", postfix_log_file
 			sys.exit(-1)
 	
-	thread.start_new_thread(aggiorna_lasso,				(1, ))
-	thread.start_new_thread(aggiorna_pbl,				(2,	))
-	thread.start_new_thread(aggiorna_uce,				(3, ))
-	thread.start_new_thread(pbl_expire,					(4, ))
-	thread.start_new_thread(rimozione_ip_vecchi			(5, ))
-	#thread.start_new_thread(parse_log,					(10, ))
+	if True: # esecuzione dei thread
+		thread.start_new_thread(aggiorna_lasso,				(1, ))
+		thread.start_new_thread(aggiorna_pbl,				(2,	))
+		thread.start_new_thread(aggiorna_uce,				(3, ))
+		thread.start_new_thread(pbl_expire,					(4, ))
+		thread.start_new_thread(rimozione_ip_vecchi,		(5, ))
+		thread.start_new_thread(statistiche_mrtg,			(6,	))
+		thread.start_new_thread(rimozione_iptables,			(7,	))
+		thread.start_new_thread(forza_cidrarc,				(8,	)) # da eliminare
+		thread.start_new_thread(lettore,					(10, ))
 
-	# altre operazioni ciclicle
-	# calcolo quanto manca alla mezzanotte
-	# secs_of_sleep = ((datetime.datetime.now().replace(hour=23,minute=59,second=59) - datetime.datetime.now()).seconds)+10
-	# time.sleep(secs_of_sleep)
-	# today_ip_blocked = 0 # azzero il contatore giornaliero
-	# fucklog_utils.geoip_db = False # Barbatrucco per forzare il refresh del DB di geolocalizzazione
-	
 	while True:
 		command = raw_input("What's up:")
 		if command == "q":
 			logit("Main: clean shutdown")
 			sys.exit()
-		if command == "s":
-			logit("Stats: "+str(today_ip_blocked)+"/"+str(all_ip_blocked)+'-'+str(len(list_of_iptables_chains)))
-			print "   Today IP / all IP blocked:", today_ip_blocked, "/",  all_ip_blocked,  ". Chains: ", len(list_of_iptables_chains)
