@@ -304,14 +304,14 @@ def verifica_manuale_pbl(IP):
 
 def blocca_in_iptables(indirizzo_da_bloccare, bloccalo_per):
 	"""Ricevo IP e numero di giorni. Metto in IPTables e aggiorno Blocked->Fucklog->Mysql"""
-	
-	db = connetto_db()
-	
+		
 	fino_al_timestamp = str( datetime.datetime.now() + datetime.timedelta(hours = 12 * bloccalo_per) ) # calcolo il timestamp di fine
 	if subprocess.call(['/sbin/iptables', '-A', 'fucklog', '-s', indirizzo_da_bloccare, '--protocol', 'tcp', '--dport', '25', '-j', 'DROP'], shell=False):
 		logit('BloccaIpTables: errore iptables ' + indirizzo_da_bloccare)
 	else:
+		db = connetto_db()
 		db.execute("insert into BLOCKED (IP, END) values (%s, %s)", (indirizzo_da_bloccare, fino_al_timestamp))
+		db.close()
 
 def ip_gia_in_cidr(IP):
 	"""Ricevo un IP e torno la sua eventuale classe CIDR da CidrArc->Fucklog->Mysql"""
