@@ -237,13 +237,13 @@ def pbl_expire(Id):
 					db.execute("update CIDR set LASTUPDATE=CURRENT_TIMESTAMP where CIDR=%s", (CIDR,))
 				time.sleep(pausa_tra_le_query)
 
-def rimozione_iptables(Id):
-	"""Rimuovo il blocco di IPTables"""
+def scadenza_iptables(Id):
+	"""Rimuovo le regole di IpTables scadute"""
 	
 	db = connetto_db()
 	
 	while True:
-		time.sleep(1800) # ogni mezz'ora
+		time.sleep(900) # ogni quarto d'ora
 		db.execute('select IP from BLOCKED where END < CURRENT_TIMESTAMP()')
 		for IP in db.fetchall():
 			if subprocess.call(['/sbin/iptables', '-D', 'fucklog', '-s', IP[0], '--protocol', 'tcp', '--dport', '25', '-j', 'DROP'], shell=False):
@@ -251,7 +251,7 @@ def rimozione_iptables(Id):
 				continue
 			else:
 				db.execute('delete from BLOCKED where IP=%s', (IP[0],))
-				logit('RimozioneIPtables: segato '+IP[0])
+				logit('DelIpTables: segato '+IP[0])
 
 def logit(text):
 	lock_output_log_file.acquire()
@@ -308,8 +308,10 @@ def blocca_in_iptables(indirizzo_da_bloccare, bloccalo_per):
 	db = connetto_db()
 	
 	fino_al_timestamp = str( datetime.datetime.now() + datetime.timedelta(hours = 12 * bloccalo_per) ) # calcolo il timestamp di fine
-	os.system("/sbin/iptables -A 'fucklog' -s "+indirizzo_da_bloccare+" --protocol tcp --dport 25 -j DROP")
-	db.execute("insert into BLOCKED (IP, END) values (%s, %s)", (indirizzo_da_bloccare, fino_al_timestamp))
+	if subprocess.call(['/sbin/iptables', '-A', 'fucklog', '-s', indirizzo_da_bloccare, '--protocol', 'tcp', '--dport', '25', '-j', 'DROP'], shell=False):
+		logit('BloccaIpTables: errore iptables ' + indirizzo_da_bloccare)
+	else:
+		db.execute("insert into BLOCKED (IP, END) values (%s, %s)", (indirizzo_da_bloccare, fino_al_timestamp))
 
 def ip_gia_in_cidr(IP):
 	"""Ricevo un IP e torno la sua eventuale classe CIDR da CidrArc->Fucklog->Mysql"""
@@ -445,7 +447,7 @@ if __name__ == "__main__":
 		thread.start_new_thread(pbl_expire,					(4, ))
 		thread.start_new_thread(rimozione_ip_vecchi,		(5, ))
 		thread.start_new_thread(statistiche_mrtg,			(6,	))
-		thread.start_new_thread(rimozione_iptables,			(7,	))
+		thread.start_new_thread(scadenza_iptables,			(7,	))
 		thread.start_new_thread(forza_cidrarc,				(8,	)) # da eliminare
 		thread.start_new_thread(lettore,					(10, ))
 
