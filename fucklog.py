@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+# http://code.google.com/p/netaddr
+# python-dnspython
+
 import datetime, dns.resolver, dns.reversename, MySQLdb, netaddr, os, pygeoip, random, re, shelve, sys, thread, threading, time, urllib
 
 if True: # definizione variabili globali
@@ -148,10 +151,10 @@ def aggiorna_pbl(Id):
 				db.execute("delete from PBLURL where URL=%s",(IP,))
 				continue
 
-			if ip_gia_in_cidr(IP):
-				logit("WebPBL: gia' mappato "+IP)
-				db.execute("delete from PBLURL where URL=%s",(IP,))
-				continue
+			#if ip_gia_in_cidr(IP): # da riflettere: l'IP potrebbe gia' risultare in CIDR per altre classi intervenute nel frattempo
+			#	logit("WebPBL: gia' mappato "+IP)
+			#	db.execute("delete from PBLURL where URL=%s",(IP,))
+			#	continue
 
 			if not netaddr.ip.all_matching_cidrs(netaddr.IPAddress(IP),[netaddr.IPNetwork(CIDR),]):
 				logit("WebPBL: IP/CIDR non combaciano "+str(IP)+" "+str(CIDR))
@@ -189,10 +192,10 @@ def connetto_db():
 		sys.exit(-1)
 
 def rimozione_ip_vecchi(Id):
-	"""Leggo Ip->Fucklog->MySQL e rimuovo gli IP che da più di 4 mesi non spammano (ripeto ogni 8 ore)"""
+	"""Leggo Ip->Fucklog->MySQL e rimuovo gli IP che da più di 4 mesi non spammano"""
 	
 	while True:
-		time.sleep(7200) # ogni 2 ore
+		time.sleep(86400) # una volta al giorno può essere lasciato fino a fine 2010. La granularita' dell'archivio rende inutile un delete più frequente.
 		logit('RimozioneIP: inizio')
 		db = connetto_db()
 		db.execute('select count(*) from IP where DATE < (CURRENT_TIMESTAMP() - INTERVAL 4 MONTH)')
@@ -260,7 +263,7 @@ def statistiche_mrtg(Id):
 	db = connetto_db()
 	
 	while True:
-		db.execute("select count(*) from BLOCKED where CAST(BEGIN AS DATE)=CURDATE()") # ricavo gli IP di oggi
+		db.execute("select count(*) from BLOCKED where CAST(BEGIN AS DATE)=CURDATE()") 
 		tmp = db.fetchone()
 		ip_di_oggi = str(tmp[0])
 		
@@ -450,3 +453,6 @@ if __name__ == "__main__":
 		if command == "q":
 			logit("Main: clean shutdown")
 			sys.exit()
+		if command == "a":
+			print "aggiornamento CidrArc"
+			aggiorna_cidrarc()

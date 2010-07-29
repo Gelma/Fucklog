@@ -1,7 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# http://code.google.com/p/netaddr
-# python-dnspython
 
 import netaddr, os, sys, socket, time, datetime, re, thread
 
@@ -51,14 +49,11 @@ def iptables_to_nat():
 def nmap_fingerprint(IP):
 	# dato un IP, me lo spupazzo con nmap per trovare l'OS fingerprint
 	# ritorno le righe significative di testo di nmap
-
-	import os, netaddr
 	
 	client_da_usare      = 'nice -n20 /opt/nmap/bin/nmap '			# ocio al blank finale
 	argomenti_del_client = '-O --osscan-limit -F --fuzzy '	# ocio al blank finale
 	responso = []
 	
-	# validazione IP	
 	try:
 		IP=netaddr.IPAddress(IP)
 	except:
@@ -76,8 +71,6 @@ def nmap_fingerprint(IP):
 def update_OS_worker(IP,date_from_db):
 	# ricevo un IP, lo nmappo metto i dati in OS->IP->FUCKLOG->MYSQL
 	# date_from_db è data e ora dell'update dell'IP. Lo re-inserisco per non perdere l'informazione con l'inserimento del testo nmap
-	
-	import time
 	
 	db = connetto_db()
 	print IP
@@ -123,65 +116,6 @@ def Update_OS():
 
 	db.close()
 
-def Cidr_db_size():
-	# Aggiorno SIZE->CIDR->FUCKLOG->MYSQL
-
-	while True:
-		db = connetto_db()
-		db.execute("select CIDR from CIDR where SIZE is null")
-		for row in db.fetchall():
-			size = Size_cidr(row[0])
-			try:
-				db.execute("update CIDR set SIZE=%s where CIDR=%s", (size, row[0]))
-			except:
-				print "fallito inserimento", row[0]
-
-		db.execute("select SUM(SIZE) from CIDR")
-		for row in db.fetchall():
-			print "Totale IP in CIDR:",row[0]
-
-		db.close()
-		if KeepAlive is False:
-			break
-		else:
-			time.sleep(3600)
-
-def Geoloc_update():
-	# Aggiorno le tuple Null in GEOIP->IP->FUCKLOG->MYSQL
-	# onoro KeepAlive
-
-	while True:
-		db = connetto_db()
-		db.execute("select IP from IP where GEOIP is null")
-		for row in db.fetchall():
-			ip      = netaddr.IPAddress(row[0])
-			nazione = geoip_from_ip(str(ip))
-			try:
-				db.execute("update IP set GEOIP=%s where IP=%s", (nazione, int(ip)))
-			except:
-				print "fallito",str(ip),nazione
-			print ip, nazione
-		db.close()
-		if KeepAlive is False:
-			break
-		else:
-			time.sleep(3600)
-
-def Pbl_in_iptables():
-	# Scanno gli IP in Iptables e torno i link a PBL (i primi 20)
-
-	counter = 0
-	for chain in os.popen('/sbin/iptables -L -n|grep -i fucklog|tac'):
-		for ip in os.popen('/sbin/iptables -L '+chain.split()[1]+' -n | /bin/grep DROP'):
-			ip = ip.split()[3]
-			if is_already_mapped(ip): continue
-			res = is_pbl(ip)
-			if res:
-				print res
-				counter = counter +1
-				if counter == 20:
-					return
-
 def Totali():
 	# Invocato torno il numero totale di IP suddivisi per classi A
 
@@ -194,17 +128,6 @@ def Totali():
 		for row in db.fetchall():
 			if row[0] != 0:
 				print row[0], A
-
-def Clean_ip():
-	# Passo in rassegna gli IP in IP->Fucklog->MySQL e levo quelli gia' in CIDR
-
-	db = connetto_db()
-	db.execute("select IP from IP order by IP")
-	for row in db.fetchall():
-		IP = netaddr.IPAddress(row[0])
-		if is_already_mapped(str(IP)):
-			print "Elimino: ",IP
-			db.execute("delete from IP where IP=%s",(int(IP),))
 
 def ip_to_dns(IP, without_numbers=True):
 	# prendo un IP e torno il reverse lookup
