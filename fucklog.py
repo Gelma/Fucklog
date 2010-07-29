@@ -3,7 +3,7 @@
 # http://code.google.com/p/netaddr
 # python-dnspython
 
-import datetime, dns.resolver, dns.reversename, MySQLdb, netaddr, os, pygeoip, random, re, shelve, sys, thread, threading, time, urllib
+import datetime, dns.resolver, dns.reversename, MySQLdb, netaddr, os, pygeoip, random, re, shelve, sys, subprocess, thread, threading, time, urllib
 
 if True: # definizione variabili globali
 	mysql_host, mysql_user, mysql_passwd, mysql_db = "localhost", "fucklog", "pattinaggio", "fucklog"
@@ -238,18 +238,20 @@ def pbl_expire(Id):
 				time.sleep(pausa_tra_le_query)
 
 def rimozione_iptables(Id):
-	"""A cadenza oraria rimuovo il blocco di IPTables"""
+	"""Rimuovo il blocco di IPTables"""
 	
 	db = connetto_db()
 	
 	while True:
-		time.sleep(3600)
+		time.sleep(1800) # ogni mezz'ora
 		db.execute('select IP from BLOCKED where END < CURRENT_TIMESTAMP()')
 		for IP in db.fetchall():
-			IP = IP[0]
-			db.execute('delete from BLOCKED where IP=%s', (IP,))
-			os.system("/sbin/iptables -D 'fucklog' -s "+IP+" --protocol tcp --dport 25 -j DROP")
-			logit('RimozioneIPtables: segato '+str(IP))
+			if subprocess.call(['/sbin/iptables', '-D', 'fucklog', '-s', IP[0], '--protocol', 'tcp', '--dport', '25', '-j', 'DROP'], shell=False):
+				logit('DelIpTables: errore su rimozione '+IP[0])
+				continue
+			else:
+				db.execute('delete from BLOCKED where IP=%s', (IP[0],))
+				logit('RimozioneIPtables: segato '+IP[0])
 
 def logit(text):
 	lock_output_log_file.acquire()
@@ -414,6 +416,7 @@ if __name__ == "__main__":
 	# controllo per unica istanza in esecuzione
 	# rigenerazione sensata di CIDRARC
 	# autopartenza logger
+	# aggiornamento automatico geoip db
 	
 	db = connetto_db()
 	
@@ -426,8 +429,6 @@ if __name__ == "__main__":
 		for IP in db.fetchall(): os.system("/sbin/iptables -A 'tmp-fucklog' -s "+IP[0]+" --protocol tcp --dport 25 -j DROP")
 		for flag in ['F', 'X']: os.system("/sbin/iptables -"+flag+" fucklog") # Elimino la catena fucklog
 		os.system("/sbin/iptables -E tmp-fucklog fucklog") # e rinomino tmp-fucklog in fucklog
-
-	aggiorna_cidrarc() # aggiorna tutte le voci nel DB
 	
 	if True: # controllo validita' del file di log
 		if os.path.isfile(postfix_log_file):
