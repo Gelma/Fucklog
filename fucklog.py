@@ -7,7 +7,7 @@ import datetime, dns.resolver, dns.reversename, MySQLdb, netaddr, os, pygeoip, r
 
 if True: # definizione variabili globali
 	mysql_host, mysql_user, mysql_passwd, mysql_db = "localhost", "fucklog", "pattinaggio", "fucklog"
-	interval 				= 3 # minutes
+	interval 				= 5 # minutes
 	if True: # RegExp
 		RegExps 				= [] # Array delle RegExp da controllare
 		RegExps.append(re.compile('.*RCPT from (.*)\[(.*)\]:.*blocked using.*from=<(.*)> to=<(.*)> proto')) # blacklist
@@ -298,7 +298,7 @@ def lettore(Id):
 						IP, DNS, FROM, TO = m.group(2), m.group(1), m.group(3), m.group(4) # estrapolo i dati
 					else: # se quindi REASON è 2 oppure 3
 						IP, DNS, FROM, TO = m.group(2), m.group(1), None, None
-						if IP == 'unknown': continue
+						if IP == 'unknown' or DNS != 'unknown': continue
 					if not gia_in_blocco(IP): # controllo che l'IP non sia gia' bloccato
 						if Debug: logit('Log: '+IP+' non bloccato')
 						if DNS == 'unknown': DNS = None
@@ -465,17 +465,18 @@ def verifica_manuale_pbl(IP):
 
 if __name__ == "__main__":
 	# Todo list:
-	# controllare che il jump in INPUT si presente
+	# controllare che il jump in INPUT sia presente (va rifatta anche la parte di recovery delle regole alla partenza.)
 	# controllo per unica istanza in esecuzione
-	# rigenerazione sensata di CIDRARC
-	# autopartenza logger
-	# aggiornamento automatico geoip db
+	# rigenerazione sensata di CIDRARC (ora avviene una volta al giorno, forse varrebbe la pena individuare dei momenti opportuni)
+	# autopartenza di mrtg
+	# aggiornamento automatico geoip db (dovrebbe essere aggiornato una volta al mese)
 	# rivedere i costrutti condizionati (eccessivo uso di continue)
+	# portare logit a **
 	
 	logit("Fucklog: start")
 	db = connetto_db()
 	
-	if True: # ripristino delle regole di IpTables
+	if True: # ripristino delle regole di IpTables (va rivisto alla luce del jump di IpTables)
 		logit('Ripristino Iptables: iniziato')
 		db.execute('delete from BLOCKED where END < CURRENT_TIMESTAMP()') # disintegro le regole scadute nel frattempo
 		os.system("/sbin/iptables -N tmp-fucklog") # creo la catena temporanea
