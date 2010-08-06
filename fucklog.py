@@ -199,33 +199,6 @@ def blocca_in_iptables(indirizzo_da_bloccare, bloccalo_per):
 		db.execute("insert into BLOCKED (IP, END) values (%s, %s)", (indirizzo_da_bloccare, fino_al_timestamp))
 		db.close()
 
-def cidrarc_to_iptables(): # non funziona, la quantita' di entry è eccessiva
-	"""Prendo l'intera CidrArc dal DB e la metto in IpTables"""
-
-	file_per_iptables = "/tmp/.cidrarc_to_iptables_restore"
-
-	logit('CidrArcToIptables: Start')
-	
-	giro = 0
-	db = connetto_db()
-	db.execute("select CIDR from CIDRARC")
-	elenco_cidr = db.fetchall()
-	
-	while elenco_cidr:
-		giro += 1
-		filettone = open(file_per_iptables, 'w') # creo la testa
-		filettone.write("*filter"+"\n")
-		filettone.write(":cidrarc"+str(giro)+" - [0:0]"+"\n")
-		for IP in elenco_cidr[:1000]: # creo l'elenco degli IP
-				filettone.write("-A cidrarc"+str(giro)+" -s "+IP[0]+" -p tcp -m tcp --dport 25 -j DROP"+"\n")	
-		elenco_cidr = elenco_cidr[1000:]
-
-		filettone.write("COMMIT"+"\n") # coda e chiudo
-		filettone.close()
-		os.popen("/sbin/iptables-restore -n < " + file_per_iptables) # rendo effettive
-		time.sleep(5)
-		#os.remove(file_per_iptables)
-
 def connetto_db():
 	"""Torno una connessione al DB MySQL"""
 	
@@ -512,9 +485,6 @@ if __name__ == "__main__":
 		if command == "a":
 			print "aggiornamento CidrArc"
 			aggiorna_cidrarc()
-		if command == "c":
-			print "cidrarc to iptables"
-			cidrarc_to_iptables()
 		if command == "p":
 			print contatore_pbl
 			
