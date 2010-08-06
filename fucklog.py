@@ -7,12 +7,18 @@ import datetime, dns.resolver, dns.reversename, MySQLdb, netaddr, os, pygeoip, r
 
 if True: # definizione variabili globali
 	mysql_host, mysql_user, mysql_passwd, mysql_db = "localhost", "fucklog", "pattinaggio", "fucklog"
-	interval 				= 7 # minutes
-	RegExps 				= [] # list of regular expressions to apply
-	RegExps.append(re.compile('.*RCPT from (.*)\[(.*)\]:.*blocked using.*from=<(.*)> to=<(.*)> proto')) # blacklist
-	RegExps.append(re.compile('.*NOQUEUE: reject: RCPT from (.*)\[(.*)\].*Helo command rejected: need fully-qualified hostname; from=<(.*)> to=<(.*)> proto')) # broken helo
+	interval 				= 3 # minutes
+	if True: # RegExp
+		RegExps 				= [] # Array delle RegExp da controllare
+		RegExps.append(re.compile('.*RCPT from (.*)\[(.*)\]:.*blocked using.*from=<(.*)> to=<(.*)> proto')) # blacklist
+		RegExps.append(re.compile('.*NOQUEUE: reject: RCPT from (.*)\[(.*)\].*Helo command rejected: need fully-qualified hostname; from=<(.*)> to=<(.*)> proto')) # broken helo
+		RegExps.append(re.compile('.*\[postfix/smtpd\] lost connection after .* from (.*)\[(.*)\]')) # lost connection
+		RegExps.append(re.compile('.*\[postfix/smtpd\] too many errors after .* from (.*)\[(.*)\]')) # too many errors
+		RegExps.append(re.compile('.*RCPT from (.*)\[(.*)\].*Relay access denied.*from=<(.*)> to=<(.*)> proto')) # rely access denied
 	postfix_log_file 		= "/var/log/everything/current"
 	Debug 					= False
+	#Debug					= True
+	contatore_pbl			= 0
 	# Locks
 	lock_output_log_file	= thread.allocate_lock()
 	lock_cidrarc			= thread.allocate_lock()
@@ -26,7 +32,7 @@ if True: # definizione variabili globali
 	file_mrtg_stats			= open("/tmp/.fucklog_mrtg", 'w')
 
 def aggiorna_cidrarc():
-	"""Prendo il contenuto di Cidr->Fucklog->MySQL e ottimizzo, infilando il risultato in CidrArc->Fucklog-MySQL"""
+	"""Prendo il contenuto di Cidr->Fucklog->MySQL, riduco alle classi minime, e infilo il risultato in CidrArc->Fucklog-MySQL"""
 	
 	if lock_cidrarc.locked():
 		logit('AggCidrarc: processo gia\' in esecuzione, tralascio.')
@@ -124,6 +130,7 @@ def aggiorna_uce(Id):
 				logit('UCE: errore db con '+line)
 		
 		db.close()
+		aggiorna_cidrarc() # temporaneamente, faccio l'update dopo l'ultima operazione
 
 def aggiorna_pbl(Id):
 	"""Controllo le CIDR di PBL inserite via web e le attivo (PblUrl->Fucklog->MySQL)"""
@@ -163,7 +170,7 @@ def aggiorna_pbl(Id):
 			try: # tutto ok, quindi inserisco
 				db.execute("insert into CIDR (CIDR, SIZE, CATEGORY) values (%s,%s,'pbl')", (CIDR, CIDR.size))
 			except:
-				logit("WebPBL: fallito inserimento "+CIDR)
+				logit("WebPBL: fallito inserimento "+str(CIDR))
 			db.execute("delete from PBLURL where URL=%s",(IP,))
 
 		# ripeto il controllo su tutti gli IP rimasti
@@ -192,6 +199,33 @@ def blocca_in_iptables(indirizzo_da_bloccare, bloccalo_per):
 		db.execute("insert into BLOCKED (IP, END) values (%s, %s)", (indirizzo_da_bloccare, fino_al_timestamp))
 		db.close()
 
+def cidrarc_to_iptables(): # non funziona, la quantita' di entry è eccessiva
+	"""Prendo l'intera CidrArc dal DB e la metto in IpTables"""
+
+	file_per_iptables = "/tmp/.cidrarc_to_iptables_restore"
+
+	logit('CidrArcToIptables: Start')
+	
+	giro = 0
+	db = connetto_db()
+	db.execute("select CIDR from CIDRARC")
+	elenco_cidr = db.fetchall()
+	
+	while elenco_cidr:
+		giro += 1
+		filettone = open(file_per_iptables, 'w') # creo la testa
+		filettone.write("*filter"+"\n")
+		filettone.write(":cidrarc"+str(giro)+" - [0:0]"+"\n")
+		for IP in elenco_cidr[:1000]: # creo l'elenco degli IP
+				filettone.write("-A cidrarc"+str(giro)+" -s "+IP[0]+" -p tcp -m tcp --dport 25 -j DROP"+"\n")	
+		elenco_cidr = elenco_cidr[1000:]
+
+		filettone.write("COMMIT"+"\n") # coda e chiudo
+		filettone.close()
+		os.popen("/sbin/iptables-restore -n < " + file_per_iptables) # rendo effettive
+		time.sleep(5)
+		#os.remove(file_per_iptables)
+
 def connetto_db():
 	"""Torno una connessione al DB MySQL"""
 	
@@ -208,14 +242,6 @@ def dormi_fino_alle(h, m):
 	
 	time.sleep( (datetime.datetime.now().replace(hour=h, minute=m, second=0) - datetime.datetime.now()).seconds )
 
-def forza_cidrarc(Id):
-	"""Forzo l'aggiornamento ogni 4 ore"""
-	
-	while True:
-		time.sleep(60*60*4)
-		logit("ForzaCidrarc: inizio")
-		aggiorna_cidrarc()
-
 def gia_in_blocco(IP):
 	"""Ricevo un IP/CIDR. Restituisco Vero se l'IP è gia' bloccato in IPTABLES (controllando Blocked->Fucklog->MySQL)."""
 	
@@ -223,6 +249,7 @@ def gia_in_blocco(IP):
 	db.execute('select IP from BLOCKED where IP=%s', (IP,))
 	tmp = db.fetchone()
 	if tmp:
+		if Debug: logit('ControlloIptables: '+IP+' risulta in IpTables '+str(tmp[0]))
 		return True
 	else:
 		return False
@@ -243,6 +270,9 @@ def ip_gia_in_cidr(IP):
 def ip_in_pbl(IP):
 	"""Accetto un IP. Torno Url/False se l'IP è in PBL"""
 	
+	global contatore_pbl
+	
+	contatore_pbl += 1
 	qstr = "%s.pbl.spamhaus.org." % '.'.join(reversed(IP.split('.'))) # hack per girare IP: 1.2.3.4 -> 4.3.2.1
 	try:
 		qa = dns.resolver.query(qstr, 'TXT')
@@ -253,24 +283,30 @@ def ip_in_pbl(IP):
 			return s
 
 def lettore(Id):
+	"""Leggo regolarmente il log di Postfix, e smazzo gli IP che trovo"""
+	
 	global db
 
 	while True:
 		logit('Log: nuovo giro')
 		cronometro = time.time()
 		for log_line in os.popen(grep_command):
-			for REASON, regexp in enumerate(RegExps): # REASON=0 (rbl) 1 (helo)
+			for REASON, regexp in enumerate(RegExps): # REASON=0 (rbl) 1 (helo) 2 (lost connection) 3 (too many errors) 4 (relay access)
 				m = regexp.match(log_line) # applico le regexp
 				if m: # se combaciano
-					if not gia_in_blocco(m.group(2)): # controllo che l'IP non sia gia' bloccato
+					if REASON == 0 or REASON == 1 or REASON == 4:
 						IP, DNS, FROM, TO = m.group(2), m.group(1), m.group(3), m.group(4) # estrapolo i dati
+					else: # se quindi REASON è 2 oppure 3
+						IP, DNS, FROM, TO = m.group(2), m.group(1), None, None
+						if IP == 'unknown': continue
+					if not gia_in_blocco(IP): # controllo che l'IP non sia gia' bloccato
 						if Debug: logit('Log: '+IP+' non bloccato')
 						if DNS == 'unknown': DNS = None
 						CIDR_dello_IP = ip_gia_in_cidr(IP) # controllo se l'IP appartiene ad una classe nota
 						if CIDR_dello_IP: # se è di classe nota
 							if Debug: logit('Log: '+IP+' è di una classe nota')
 							if gia_in_blocco(CIDR_dello_IP): # controllo che la CIDR dell'IP non sia gia' bloccata
-								if Debug: logit('Log: '+IP+' risulta la sua CIDR gia\' in iptables')
+								if Debug: logit('Log: '+IP+' risulta la sua CIDR gia\' in iptables '+CIDR_dello_IP)
 								continue
 							else: # se non è gia' bloccato
 								db.execute('select COUNTER from CIDRARC where CIDR=%s', (CIDR_dello_IP,)) # ricavo fino a quando bloccarlo
@@ -302,12 +338,19 @@ def lettore(Id):
 							indirizzo_da_bloccare = IP
 						if Debug: logit('Log: '+IP+' bloccato con moltiplicatore '+str(bloccalo_per))
 						blocca_in_iptables(indirizzo_da_bloccare, bloccalo_per)
-						TReason = 'HELO' if REASON else 'RBL'
-						logit("Log: "+indirizzo_da_bloccare+'|'+str(bloccalo_per)+'|'+str(DNS)+'|'+FROM+'|'+TO+'|'+TReason)
+						#TReason = 'HELO' if REASON else 'RBL'
+						if REASON   == 0 : TReason = 'rbl'
+						elif REASON == 1 : TReason = 'helo'
+						elif REASON == 2 : TReason = 'lost'
+						elif REASON == 3 : TReason = 'errors'
+						elif REASON == 4 : TReason = 'norelay'
+						logit("Log: "+indirizzo_da_bloccare+'|'+str(bloccalo_per)+'|'+str(DNS)+'|'+str(FROM)+'|'+str(TO)+'|'+TReason)
 		logit('Log: controllato in '+str(time.time() - cronometro)+' secondi')
 		time.sleep(60*interval)
 
 def logit(text):
+	"""Ricevo una stringa e la pizzo nel file di log"""
+	
 	lock_output_log_file.acquire()
 	log_file.write(datetime.datetime.now().strftime('%H:%M:%S')+" "+text+'\n')
 	log_file.flush()
@@ -331,7 +374,7 @@ def pbl_expire(Id):
 	dadi = random.SystemRandom()
 	pausa_tra_le_query = 23 # numero di secondi tra un query e l'altra. in questo modo sono poco più di 3700 query al giorno
 	
-	time.sleep(120) # per evitare lo storm iniziale
+	time.sleep(120) # per evitare lo storm ad ogni ripartenza
 	
 	while True:
 		logit('PBL Expire: inizio')
@@ -361,7 +404,8 @@ def rimozione_ip_vecchi(Id):
 	"""Leggo Ip->Fucklog->MySQL e rimuovo gli IP che da più di 4 mesi non spammano"""
 	
 	while True:
-		time.sleep(28800) # ogni 8 ore. A fine anno può essere portato all'ora.
+		#time.sleep(28800) # A fine anno riabilito questo
+		dormi_fino_alle(1,11)
 		logit('RimozioneIP: inizio')
 		db = connetto_db()
 		db.execute('select count(*) from IP where DATE < (CURRENT_TIMESTAMP() - INTERVAL 4 MONTH)')
@@ -421,10 +465,12 @@ def verifica_manuale_pbl(IP):
 
 if __name__ == "__main__":
 	# Todo list:
+	# controllare che il jump in INPUT si presente
 	# controllo per unica istanza in esecuzione
 	# rigenerazione sensata di CIDRARC
 	# autopartenza logger
 	# aggiornamento automatico geoip db
+	# rivedere i costrutti condizionati (eccessivo uso di continue)
 	
 	logit("Fucklog: start")
 	db = connetto_db()
@@ -441,7 +487,7 @@ if __name__ == "__main__":
 	
 	if True: # controllo validita' del file di log
 		if os.path.isfile(postfix_log_file):
-			grep_command = "/bin/grep --mmap -E '(fully-qualified|blocked)' " + postfix_log_file
+			grep_command = "/bin/grep --mmap -E '(fully-qualified|blocked|lost connection|too many errors|Relay access denied)' " + postfix_log_file
 		else:
 			logit("Errore sul log file")
 			print "Problema sul file di log", postfix_log_file
@@ -455,7 +501,6 @@ if __name__ == "__main__":
 		thread.start_new_thread(rimozione_ip_vecchi,		(5, ))
 		thread.start_new_thread(statistiche_mrtg,			(6,	))
 		thread.start_new_thread(scadenza_iptables,			(7,	))
-		thread.start_new_thread(forza_cidrarc,				(8,	)) # da eliminare
 		thread.start_new_thread(lettore,					(10, ))
 
 	while True:
@@ -466,3 +511,9 @@ if __name__ == "__main__":
 		if command == "a":
 			print "aggiornamento CidrArc"
 			aggiorna_cidrarc()
+		if command == "c":
+			print "cidrarc to iptables"
+			cidrarc_to_iptables()
+		if command == "p":
+			print contatore_pbl
+			
