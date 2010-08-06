@@ -1,9 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# http://code.google.com/p/netaddr
-# python-dnspython
 
-import datetime, dns.resolver, dns.reversename, MySQLdb, netaddr, os, pygeoip, random, re, shelve, sys, subprocess, thread, threading, time, urllib
+try:
+	import datetime, dns.resolver, dns.reversename, MySQLdb, netaddr, os, pygeoip, random, re, shelve, sys, subprocess, thread, threading, time, urllib
+except:
+	import sys
+	print "Import fallito. Ricorda che necessiti di questi moduli:\n\n   http://code.google.com/p/netaddr\n   pygeoip\n   python-dnspython\n"
+	sys.exit()
 
 if True: # definizione variabili globali
 	mysql_host, mysql_user, mysql_passwd, mysql_db = "localhost", "fucklog", "pattinaggio", "fucklog"
