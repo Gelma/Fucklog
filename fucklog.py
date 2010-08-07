@@ -490,4 +490,5 @@ if __name__ == "__main__":
 			aggiorna_cidrarc()
 		if command == "p":
 			print contatore_pbl
-			
+		if command == "h":
+			print "Help:\n   q: quit\na:   Aggiorna CidrArc\n    p: Stampa numero di richieste PBL\n"
