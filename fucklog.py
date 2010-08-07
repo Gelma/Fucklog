@@ -13,6 +13,7 @@ if True: # definizione variabili globali
 	interval 				= 5 # minutes
 	if True: # RegExp
 		RegExps 				= [] # Array delle RegExp da controllare
+		RegExpsReason			= ('rbl', 'helo', 'lost', 'many errors', 'norelay') # Motivo del match (per la stampa nel log)
 		RegExps.append(re.compile('.*RCPT from (.*)\[(.*)\]:.*blocked using.*from=<(.*)> to=<(.*)> proto')) # blacklist
 		RegExps.append(re.compile('.*NOQUEUE: reject: RCPT from (.*)\[(.*)\].*Helo command rejected: need fully-qualified hostname; from=<(.*)> to=<(.*)> proto')) # broken helo
 		RegExps.append(re.compile('.*\[postfix/smtpd\] lost connection after .* from (.*)\[(.*)\]')) # lost connection
@@ -20,7 +21,6 @@ if True: # definizione variabili globali
 		RegExps.append(re.compile('.*RCPT from (.*)\[(.*)\].*Relay access denied.*from=<(.*)> to=<(.*)> proto')) # rely access denied
 	postfix_log_file 		= "/var/log/everything/current"
 	Debug 					= False
-	#Debug					= True
 	contatore_pbl			= 0
 	# Locks
 	lock_output_log_file	= thread.allocate_lock()
@@ -314,13 +314,7 @@ def lettore(Id):
 							indirizzo_da_bloccare = IP
 						if Debug: logit('Log: '+IP+' bloccato con moltiplicatore '+str(bloccalo_per))
 						blocca_in_iptables(indirizzo_da_bloccare, bloccalo_per)
-						#TReason = 'HELO' if REASON else 'RBL'
-						if REASON   == 0 : TReason = 'rbl'
-						elif REASON == 1 : TReason = 'helo'
-						elif REASON == 2 : TReason = 'lost'
-						elif REASON == 3 : TReason = 'errors'
-						elif REASON == 4 : TReason = 'norelay'
-						logit("Log: "+indirizzo_da_bloccare+'|'+str(bloccalo_per)+'|'+str(DNS)+'|'+str(FROM)+'|'+str(TO)+'|'+TReason)
+						logit("Log: "+indirizzo_da_bloccare+'|'+str(bloccalo_per)+'|'+str(DNS)+'|'+str(FROM)+'|'+str(TO)+'|'+RegExpsReason[REASON])
 		logit('Log: controllato in '+str(time.time() - cronometro)+' secondi')
 		time.sleep(60*interval)
 
