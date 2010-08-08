@@ -10,37 +10,37 @@ except:
 
 if True: # definizione variabili globali
 	mysql_host, mysql_user, mysql_passwd, mysql_db = "localhost", "fucklog", "pattinaggio", "fucklog"
-	interval 				= 5 # minutes
-	if True: # RegExp
-		RegExps 				= [] # Array delle RegExp da controllare
-		RegExpsReason			= ('rbl', 'helo', 'lost', 'many errors', 'norelay') # Motivo del match (per la stampa nel log)
-		RegExps.append(re.compile('.*RCPT from (.*)\[(.*)\]:.*blocked using.*from=<(.*)> to=<(.*)> proto')) # blacklist
-		RegExps.append(re.compile('.*NOQUEUE: reject: RCPT from (.*)\[(.*)\].*Helo command rejected: need fully-qualified hostname; from=<(.*)> to=<(.*)> proto')) # broken helo
-		RegExps.append(re.compile('.*\[postfix/smtpd\] lost connection after .* from (.*)\[(.*)\]')) # lost connection
-		RegExps.append(re.compile('.*\[postfix/smtpd\] too many errors after .* from (.*)\[(.*)\]')) # too many errors
-		RegExps.append(re.compile('.*RCPT from (.*)\[(.*)\].*Relay access denied.*from=<(.*)> to=<(.*)> proto')) # rely access denied
+	interval				= 5 # minutes
 	postfix_log_file 		= "/var/log/everything/current"
-	Debug 					= False
+	Debug					= False
 	contatore_pbl			= 0
 	# Locks
 	lock_output_log_file	= thread.allocate_lock()
 	lock_cidrarc			= thread.allocate_lock()
 	# GeoIP
-	geoip_db_file 			= "/opt/GeoIP/GeoLiteCity.dat"
-	geoip_db 				= False
+	geoip_db_file			= "/opt/GeoIP/GeoLiteCity.dat"
+	geoip_db				= False
 	# Logfile
-	output_log_file 		= '/tmp/.log_file_fucklog.txt'
+	output_log_file			= '/tmp/.log_file_fucklog.txt'
 	log_file 				= open(output_log_file,'a')
 	# MRTG files
 	file_mrtg_stats			= open("/tmp/.fucklog_mrtg", 'w')
+	# RexExps
+	RegExps					= []
+	RegExpsReason			= ('rbl', 'helo', 'lost', 'many errors', 'norelay')
+	RegExps.append(re.compile('.*RCPT from (.*)\[(.*)\]:.*blocked using.*from=<(.*)> to=<(.*)> proto')) # RBL
+	RegExps.append(re.compile('.*NOQUEUE: reject: RCPT from (.*)\[(.*)\].*Helo command rejected: need fully-qualified hostname; from=<(.*)> to=<(.*)> proto')) # broken helo
+	RegExps.append(re.compile('.*\[postfix/smtpd\] lost connection after .* from (.*)\[(.*)\]')) # lost connection
+	RegExps.append(re.compile('.*\[postfix/smtpd\] too many errors after .* from (.*)\[(.*)\]')) # too many errors
+	RegExps.append(re.compile('.*RCPT from (.*)\[(.*)\].*Relay access denied.*from=<(.*)> to=<(.*)> proto')) # rely access denied
 
 def aggiorna_cidrarc():
 	"""Prendo il contenuto di Cidr->Fucklog->MySQL, riduco alle classi minime, e infilo il risultato in CidrArc->Fucklog-MySQL"""
-	
+
 	if lock_cidrarc.locked():
 		logit('AggCidrarc: processo gia\' in esecuzione, tralascio.')
 		return
-	
+
 	lock_cidrarc.acquire()
 	logit('AggCidrarc: inizio')
 	cronometro = time.time()
@@ -68,10 +68,10 @@ def aggiorna_cidrarc():
 	db.close()
 	logit('AggCidrarc: completato in '+str(time.time() - cronometro)+' secondi')
 	lock_cidrarc.release()
-	
+
 def aggiorna_lasso(Id):
 	"""Prelevo la lista Lasso e aggiorno Cidr->Fucklog->Mysql"""
-	
+
 	while True:
 		dormi_fino_alle(4,44)
 		logit('Lasso: aggiornamento '+str(datetime.datetime.now()))
@@ -103,7 +103,7 @@ def aggiorna_lasso(Id):
 
 def aggiorna_uce(Id):
 	"""Aggiorno la lista UCE2 in Cidr->Fucklog->MySQL"""
-	
+
 	while True:
 		dormi_fino_alle(5,55)
 		logit('UCE: aggiornamento '+str(datetime.datetime.now()))
@@ -220,7 +220,7 @@ def dormi_fino_alle(h, m):
 
 def gia_in_blocco(IP):
 	"""Ricevo un IP/CIDR. Restituisco Vero se l'IP è gia' bloccato in IPTABLES (controllando Blocked->Fucklog->MySQL)."""
-	
+
 	db = connetto_db()
 	db.execute('select IP from BLOCKED where IP=%s', (IP,))
 	tmp = db.fetchone()
@@ -232,7 +232,7 @@ def gia_in_blocco(IP):
 
 def ip_gia_in_cidr(IP):
 	"""Ricevo un IP e torno la sua eventuale classe CIDR da CidrArc->Fucklog->Mysql"""
-	
+
 	IP = netaddr.IPAddress(IP)
 	db = connetto_db()
 	db.execute('select CIDR from CIDRARC where IPSTART <=%s and IPEND >=%s', (int(IP), int(IP)))
@@ -245,9 +245,9 @@ def ip_gia_in_cidr(IP):
 
 def ip_in_pbl(IP):
 	"""Accetto un IP. Torno Url/False se l'IP è in PBL"""
-	
+
 	global contatore_pbl
-	
+
 	contatore_pbl += 1
 	qstr = "%s.pbl.spamhaus.org." % '.'.join(reversed(IP.split('.'))) # hack per girare IP: 1.2.3.4 -> 4.3.2.1
 	try:
@@ -260,7 +260,7 @@ def ip_in_pbl(IP):
 
 def lettore(Id):
 	"""Leggo regolarmente il log di Postfix, e smazzo gli IP che trovo"""
-	
+
 	global db
 
 	while True:
@@ -320,7 +320,7 @@ def lettore(Id):
 
 def logit(text):
 	"""Ricevo una stringa e la pizzo nel file di log"""
-	
+
 	lock_output_log_file.acquire()
 	log_file.write(datetime.datetime.now().strftime('%H:%M:%S')+" "+text+'\n')
 	log_file.flush()
@@ -340,12 +340,12 @@ def nazione_dello_ip(IP):
 
 def pbl_expire(Id):
 	"""Controllo tutte le CIDR PBL più vecchie di due mesi, ed eventualmente le sego (Cidr->Fucklog->MySQL)"""
-	
+
 	dadi = random.SystemRandom()
 	pausa_tra_le_query = 23 # numero di secondi tra un query e l'altra. in questo modo sono poco più di 3700 query al giorno
-	
+
 	time.sleep(120) # per evitare lo storm ad ogni ripartenza
-	
+
 	while True:
 		logit('PBL Expire: inizio')
 		cidr_controllate = cidr_cancellate = 0
@@ -372,7 +372,7 @@ def pbl_expire(Id):
 
 def rimozione_ip_vecchi(Id):
 	"""Leggo Ip->Fucklog->MySQL e rimuovo gli IP che da più di 4 mesi non spammano"""
-	
+
 	while True:
 		#time.sleep(28800) # A fine anno riabilito questo
 		dormi_fino_alle(1,11)
@@ -387,9 +387,9 @@ def rimozione_ip_vecchi(Id):
 
 def scadenza_iptables(Id):
 	"""Rimuovo le regole di IpTables scadute"""
-	
+
 	db = connetto_db()
-	
+
 	while True:
 		time.sleep(900) # ogni quarto d'ora
 		db.execute('select IP from BLOCKED where END < CURRENT_TIMESTAMP()')
@@ -403,9 +403,9 @@ def scadenza_iptables(Id):
 
 def statistiche_mrtg(Id):
 	"""Aggiorno a cadenza fissa le statistiche per MRTG"""
-	
+
 	db = connetto_db()
-	
+
 	while True:
 		db.execute("select count(*) from BLOCKED where CAST(BEGIN AS DATE)=CURDATE()") 
 		tmp = db.fetchone()
@@ -425,7 +425,7 @@ def statistiche_mrtg(Id):
 	
 def verifica_manuale_pbl(IP): 
 	"""Ricevo un IP e lo metto in coda per la verifica via WEB (PblUrl->Fucklog->MySQL)"""
-	
+
 	db = connetto_db()
 	try:
 		db.execute("insert into PBLURL (URL) values (%s)", (IP,))
@@ -442,10 +442,10 @@ if __name__ == "__main__":
 	# aggiornamento automatico geoip db (dovrebbe essere aggiornato una volta al mese)
 	# rivedere i costrutti condizionati (eccessivo uso di continue)
 	# portare logit a **
-	
+
 	logit("Fucklog: start")
 	db = connetto_db()
-	
+
 	if True: # ripristino delle regole di IpTables (va rivisto alla luce del jump di IpTables)
 		logit('Ripristino Iptables: iniziato')
 		db.execute('delete from BLOCKED where END < CURRENT_TIMESTAMP()') # disintegro le regole scadute nel frattempo
@@ -455,7 +455,7 @@ if __name__ == "__main__":
 		for IP in db.fetchall(): os.system("/sbin/iptables -A 'tmp-fucklog' -s "+IP[0]+" --protocol tcp --dport 25 -j DROP")
 		for flag in ['F', 'X']: os.system("/sbin/iptables -"+flag+" fucklog") # Elimino la catena fucklog
 		os.system("/sbin/iptables -E tmp-fucklog fucklog") # e rinomino tmp-fucklog in fucklog
-	
+
 	if True: # controllo validita' del file di log
 		if os.path.isfile(postfix_log_file):
 			grep_command = "/bin/grep --mmap -E '(fully-qualified|blocked|lost connection|too many errors|Relay access denied)' " + postfix_log_file
@@ -463,16 +463,16 @@ if __name__ == "__main__":
 			logit("Errore sul log file")
 			print "Problema sul file di log", postfix_log_file
 			sys.exit(-1)
-	
+
 	if True: # esecuzione dei thread
-		thread.start_new_thread(aggiorna_lasso,				(1, ))
-		thread.start_new_thread(aggiorna_pbl,				(2,	))
-		thread.start_new_thread(aggiorna_uce,				(3, ))
-		thread.start_new_thread(pbl_expire,					(4, ))
-		thread.start_new_thread(rimozione_ip_vecchi,		(5, ))
-		thread.start_new_thread(statistiche_mrtg,			(6,	))
-		thread.start_new_thread(scadenza_iptables,			(7,	))
-		thread.start_new_thread(lettore,					(10, ))
+		thread.start_new_thread(aggiorna_lasso,			(1, ))
+		thread.start_new_thread(aggiorna_pbl,			(2,	))
+		thread.start_new_thread(aggiorna_uce,			(3, ))
+		thread.start_new_thread(pbl_expire,				(4, ))
+		thread.start_new_thread(rimozione_ip_vecchi,	(5, ))
+		thread.start_new_thread(statistiche_mrtg,		(6,	))
+		thread.start_new_thread(scadenza_iptables,		(7,	))
+		thread.start_new_thread(lettore,				(10, ))
 
 	while True:
 		command = raw_input("What's up:")
