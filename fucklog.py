@@ -443,7 +443,6 @@ def verifica_manuale_pbl(IP):
 
 if __name__ == "__main__":
 	# Todo list:
-	# controllare che il jump in INPUT sia presente (va rifatta anche la parte di recovery delle regole alla partenza.)
 	# controllo per unica istanza in esecuzione
 	# rigenerazione sensata di CIDRARC (ora avviene una volta al giorno, forse varrebbe la pena individuare dei momenti opportuni)
 	# autopartenza di mrtg
@@ -454,20 +453,20 @@ if __name__ == "__main__":
 	db = connetto_db()
 
 	if True: # ripristino delle regole di IpTables (va rivisto alla luce del jump di IpTables)
-		logit('Ripristino Iptables: iniziato')
+		logit('Main: ripristino IpTables')
+		os.system("/sbin/iptables -D INPUT -p tcp --dport 25 -j fucklog") # elimino l'eventuale jump presente
+		for flag in ['F', 'X']: os.system("/sbin/iptables -"+flag+" fucklog") # per poter eliminare la catena fucklog
+		os.system("/sbin/iptables -N fucklog") # ricreo la catena
+		os.system("/sbin/iptables -A INPUT -p tcp --dport 25 -j fucklog") # la punto
 		db.execute('delete from BLOCKED where END < CURRENT_TIMESTAMP()') # disintegro le regole scadute nel frattempo
-		os.system("/sbin/iptables -N tmp-fucklog") # creo la catena temporanea
-		os.system("/sbin/iptables -F tmp-fucklog") # e la svuoto
-		db.execute('select IP from BLOCKED order by END') # la popolo
-		for IP in db.fetchall(): os.system("/sbin/iptables -A 'tmp-fucklog' -s "+IP[0]+" --protocol tcp --dport 25 -j DROP")
-		for flag in ['F', 'X']: os.system("/sbin/iptables -"+flag+" fucklog") # Elimino la catena fucklog
-		os.system("/sbin/iptables -E tmp-fucklog fucklog") # e rinomino tmp-fucklog in fucklog
+		db.execute('select IP from BLOCKED order by END') # e ripopolo
+		for IP in db.fetchall(): os.system("/sbin/iptables -A 'fucklog' -s "+IP[0]+" --protocol tcp --dport 25 -j DROP")
 
 	if True: # controllo validita' del file di log
 		if os.path.isfile(postfix_log_file):
 			grep_command = "/bin/grep --mmap -E '(fully-qualified|blocked|lost connection|too many errors|Relay access denied)' " + postfix_log_file
 		else:
-			logit("Errore sul log file")
+			logit("Main: postfix log file inutilizzabile", postfix_log_file)
 			print "Problema sul file di log", postfix_log_file
 			sys.exit(-1)
 
@@ -492,4 +491,4 @@ if __name__ == "__main__":
 		if command == "p":
 			print contatore_pbl
 		if command == "h":
-			print "Help:\n   q: quit\na:   Aggiorna CidrArc\n    p: Stampa numero di richieste PBL\n"
+			print "Help:\n\tq: quit\n\ta: Aggiorna CidrArc\n\tp: Stampa numero di richieste PBL\n"
