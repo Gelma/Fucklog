@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 try:
-	import datetime, dns.resolver, dns.reversename, MySQLdb, netaddr, os, pygeoip, random, re, shelve, sys, subprocess, thread, threading, time, urllib
+	import datetime, dns.resolver, dns.reversename, MySQLdb, netaddr, os, pygeoip, random, re, sys, subprocess, thread, time, urllib
 except:
 	import sys
 	print "Import fallito. Ricorda che necessiti di questi moduli:\n\n   http://code.google.com/p/netaddr\n   pygeoip\n   python-dnspython\n"
