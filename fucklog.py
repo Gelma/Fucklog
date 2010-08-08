@@ -5,7 +5,7 @@ try:
 	import datetime, dns.resolver, dns.reversename, MySQLdb, netaddr, os, pygeoip, random, re, sys, subprocess, thread, time, urllib
 except:
 	import sys
-	print "Import fallito. Ricorda che necessiti di questi moduli:\n\n   http://code.google.com/p/netaddr\n   pygeoip\n   python-dnspython\n"
+	print "Import fallito. Ricorda che necessiti di questi moduli:\n\thttp://code.google.com/p/netaddr\n\tpygeoip\n\tpython-dnspython"
 	sys.exit()
 
 if True: # definizione variabili globali
@@ -73,7 +73,7 @@ def aggiorna_lasso(Id):
 	"""Prelevo la lista Lasso e aggiorno Cidr->Fucklog->Mysql"""
 
 	while True:
-		dormi_fino_alle(4,44)
+		dormi_fino_alle(4, 44)
 		logit('Lasso: aggiornamento '+str(datetime.datetime.now()))
 		try:
 			lassofile = urllib.urlopen("http://www.spamhaus.org/drop/drop.lasso")
@@ -105,7 +105,7 @@ def aggiorna_uce(Id):
 	"""Aggiorno la lista UCE2 in Cidr->Fucklog->MySQL"""
 
 	while True:
-		dormi_fino_alle(5,55)
+		dormi_fino_alle(5, 55)
 		logit('UCE: aggiornamento '+str(datetime.datetime.now()))
 
 		#variante con UCE3: os.system('/usr/bin/rsync -aPz --compress-level=9 rsync-mirrors.uceprotect.net::RBLDNSD-ALL/dnsbl-3.uceprotect.net /tmp/.dnsbl-3.uceprotect.net')
@@ -165,7 +165,7 @@ def aggiorna_pbl(Id):
 			#	db.execute("delete from PBLURL where URL=%s",(IP,))
 			#	continue
 
-			if not netaddr.ip.all_matching_cidrs(netaddr.IPAddress(IP),[netaddr.IPNetwork(CIDR),]):
+			if not netaddr.ip.all_matching_cidrs(netaddr.IPAddress(IP), [netaddr.IPNetwork(CIDR),]):
 				logit("WebPBL: IP/CIDR non combaciano "+str(IP)+" "+str(CIDR))
 				db.execute("delete from PBLURL where URL=%s",(IP,))
 				continue
@@ -213,10 +213,10 @@ def connetto_db():
 		time.sleep(5)
 		sys.exit(-1)
 
-def dormi_fino_alle(h, m):
+def dormi_fino_alle(ore, minuti):
 	"""Ricevo un orario nel formato h:m, e dormo fino ad allora"""
 	
-	time.sleep( (datetime.datetime.now().replace(hour=h, minute=m, second=0) - datetime.datetime.now()).seconds )
+	time.sleep( (datetime.datetime.now().replace(hour=ore, minute=minuti, second=0) - datetime.datetime.now()).seconds )
 
 def gia_in_blocco(IP):
 	"""Ricevo un IP/CIDR. Restituisco Vero se l'IP è gia' bloccato in IPTABLES (controllando Blocked->Fucklog->MySQL)."""
@@ -375,7 +375,7 @@ def rimozione_ip_vecchi(Id):
 
 	while True:
 		#time.sleep(28800) # A fine anno riabilito questo
-		dormi_fino_alle(1,11)
+		dormi_fino_alle(1, 11)
 		logit('RimozioneIP: inizio')
 		db = connetto_db()
 		db.execute('select count(*) from IP where DATE < (CURRENT_TIMESTAMP() - INTERVAL 4 MONTH)')
