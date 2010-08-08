@@ -12,7 +12,7 @@ if True: # definizione variabili globali
 	mysql_host, mysql_user, mysql_passwd, mysql_db = "localhost", "fucklog", "pattinaggio", "fucklog"
 	interval				= 5 # minutes
 	postfix_log_file 		= "/var/log/everything/current"
-	Debug					= False
+	Debug					= True
 	contatore_pbl			= 0
 	# Locks
 	lock_output_log_file	= thread.allocate_lock()
@@ -113,7 +113,7 @@ def aggiorna_uce(Id):
 		if returncode != 0:
 			logit('UCE: errore con rsync')
 			continue
-				
+
 		db = connetto_db()
 		db.execute("delete from CIDR where CATEGORY='uce'")
 
@@ -125,13 +125,13 @@ def aggiorna_uce(Id):
 			try:
 				cidr = netaddr.IPNetwork(cidr)
 			except:
-				logit('UCE: errore con '+cidr)
+				logit('UCE: CIDR formalmente sbagliata '+cidr)
 				continue
 			try:
 				db.execute("insert into CIDR(CIDR, NAME, SIZE, CATEGORY) values (%s,%s,%s,'uce')", (cidr, note, cidr.size))
 			except:
-				logit('UCE: errore db con '+line)
-		
+				pass # CIDR gia' presente nel DB
+
 		db.close()
 		aggiorna_cidrarc() # temporaneamente, faccio l'update dopo l'ultima operazione
 
@@ -204,7 +204,7 @@ def blocca_in_iptables(indirizzo_da_bloccare, bloccalo_per):
 
 def connetto_db():
 	"""Torno una connessione al DB MySQL"""
-	
+
 	try:
 		return MySQLdb.connect(host=mysql_host, user=mysql_user, passwd=mysql_passwd, db=mysql_db).cursor()
 	except:
@@ -215,7 +215,7 @@ def connetto_db():
 
 def dormi_fino_alle(ore, minuti):
 	"""Ricevo un orario nel formato h:m, e dormo fino ad allora"""
-	
+
 	time.sleep( (datetime.datetime.now().replace(hour=ore, minute=minuti, second=0) - datetime.datetime.now()).seconds )
 
 def gia_in_blocco(IP):
@@ -249,7 +249,7 @@ def ip_in_pbl(IP):
 	global contatore_pbl
 
 	contatore_pbl += 1
-	qstr = "%s.pbl.spamhaus.org." % '.'.join(reversed(IP.split('.'))) # hack per girare IP: 1.2.3.4 -> 4.3.2.1
+	qstr = "%s.pbl.spamhaus.org." % '.'.join(reversed(IP.split('.'))) # Giro IP: 1.2.3.4 -> 4.3.2.1
 	try:
 		qa = dns.resolver.query(qstr, 'TXT')
 	except dns.exception.DNSException:
@@ -318,11 +318,19 @@ def lettore(Id):
 		logit('Log: controllato in '+str(time.time() - cronometro)+' secondi')
 		time.sleep(60*interval)
 
-def logit(text):
-	"""Ricevo una stringa e la pizzo nel file di log"""
+def logit(*args):
+	"""Ricevo un numero di argomenti a piacere, li salvo come unica stringa nei log"""
+
+	linea_log = datetime.datetime.now().strftime('%H:%M:%S')
+
+	try:
+		linea_log += ' '.join(args)
+	except: # desumo che siano presenti argomenti non testuali
+		for item in args:
+			linea_log += ' '+str(item)
 
 	lock_output_log_file.acquire()
-	log_file.write(datetime.datetime.now().strftime('%H:%M:%S')+" "+text+'\n')
+	log_file.write(linea_log+'\n')
 	log_file.flush()
 	lock_output_log_file.release()
 
@@ -410,11 +418,11 @@ def statistiche_mrtg(Id):
 		db.execute("select count(*) from BLOCKED where CAST(BEGIN AS DATE)=CURDATE()") 
 		tmp = db.fetchone()
 		ip_di_oggi = str(tmp[0])
-		
+
 		db.execute("select count(*) from BLOCKED")
 		tmp = db.fetchone()
 		ip_totali = str(tmp[0])
-		
+
 		file_mrtg_stats.seek(0)
 		file_mrtg_stats.truncate(0)
 		file_mrtg_stats.write(ip_totali+'\n'+ip_di_oggi+'\n')
@@ -422,7 +430,7 @@ def statistiche_mrtg(Id):
 		file_mrtg_stats.write('spam\n')
 		file_mrtg_stats.flush()
 		time.sleep(9*60)
-	
+
 def verifica_manuale_pbl(IP): 
 	"""Ricevo un IP e lo metto in coda per la verifica via WEB (PblUrl->Fucklog->MySQL)"""
 
@@ -441,7 +449,6 @@ if __name__ == "__main__":
 	# autopartenza di mrtg
 	# aggiornamento automatico geoip db (dovrebbe essere aggiornato una volta al mese)
 	# rivedere i costrutti condizionati (eccessivo uso di continue)
-	# portare logit a **
 
 	logit("Fucklog: start")
 	db = connetto_db()
@@ -466,13 +473,13 @@ if __name__ == "__main__":
 
 	if True: # esecuzione dei thread
 		thread.start_new_thread(aggiorna_lasso,			(1, ))
-		thread.start_new_thread(aggiorna_pbl,			(2,	))
+		thread.start_new_thread(aggiorna_pbl,			(2, ))
 		thread.start_new_thread(aggiorna_uce,			(3, ))
 		thread.start_new_thread(pbl_expire,				(4, ))
 		thread.start_new_thread(rimozione_ip_vecchi,	(5, ))
-		thread.start_new_thread(statistiche_mrtg,		(6,	))
-		thread.start_new_thread(scadenza_iptables,		(7,	))
-		thread.start_new_thread(lettore,				(10, ))
+		thread.start_new_thread(statistiche_mrtg,		(6, ))
+		thread.start_new_thread(scadenza_iptables,		(7, ))
+		thread.start_new_thread(lettore,				(8, ))
 
 	while True:
 		command = raw_input("What's up:")
