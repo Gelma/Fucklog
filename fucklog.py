@@ -12,7 +12,7 @@ if True: # definizione variabili globali
 	mysql_host, mysql_user, mysql_passwd, mysql_db = "localhost", "fucklog", "pattinaggio", "fucklog"
 	interval				= 5 # minutes
 	postfix_log_file 		= "/var/log/everything/current"
-	Debug					= True
+	Debug					= False
 	contatore_pbl			= 0
 	# Locks
 	lock_output_log_file	= thread.allocate_lock()
@@ -38,7 +38,7 @@ def aggiorna_cidrarc():
 	"""Prendo il contenuto di Cidr->Fucklog->MySQL, riduco alle classi minime, e infilo il risultato in CidrArc->Fucklog-MySQL"""
 
 	if lock_cidrarc.locked():
-		logit('AggCidrarc: processo gia\' in esecuzione, tralascio.')
+		logit('AggCidrarc: aggiornamento già in esecuzione, tralascio.')
 		return
 
 	lock_cidrarc.acquire()
@@ -47,9 +47,9 @@ def aggiorna_cidrarc():
 	db = connetto_db()
 	db.execute('(select INET_NTOA(IP) from IP) UNION (SELECT CIDR from CIDR)') # Unisco e le CIDR e i singoli IP
 	lista_cidrs_nuovi = set([c[0] for c in db.fetchall()])
-	logit('AggCidrarc: totale CIDR iniziali '+str(len(lista_cidrs_nuovi)))
+	logit('AggCidrarc: totale CIDR iniziali', len(lista_cidrs_nuovi))
 	lista_cidrs_nuovi = set(netaddr.cidr_merge(lista_cidrs_nuovi))
-	logit('AggCidrarc: totale CIDR finali '+str(len(lista_cidrs_nuovi)))
+	logit('AggCidrarc: totale CIDR finali', len(lista_cidrs_nuovi))
 	db.execute('select CIDR from CIDRARC')
 	lista_cidrs_vecchi = set([netaddr.IPNetwork(c[0]) for c in db.fetchall()])
 
@@ -57,16 +57,16 @@ def aggiorna_cidrarc():
 		if cidr not in lista_cidrs_vecchi:
 			cidr = netaddr.IPNetwork(cidr)
 			if cidr.size != 1: # non voglio le classi /32
-				logit('AggCidrarc: aggiungo '+str(cidr))
+				logit('AggCidrarc: aggiungo', cidr)
 				db.execute('insert into CIDRARC (CIDR, IPSTART, IPEND, SIZE) values (%s, %s, %s, %s)', (cidr, int(cidr[0]), int(cidr[-1]), cidr.size))
 
 	for cidr in lista_cidrs_vecchi: # cancello i vecchi
 		if cidr not in lista_cidrs_nuovi:
-			logit('AggCidrarc: rimuovo '+str(cidr))
+			logit('AggCidrarc: rimuovo',cidr)
 			db.execute('delete from CIDRARC where CIDR=%s', (cidr,))
 
 	db.close()
-	logit('AggCidrarc: completato in '+str(time.time() - cronometro)+' secondi')
+	logit('AggCidrarc: completato in', time.time() - cronometro, 'secondi')
 	lock_cidrarc.release()
 
 def aggiorna_lasso(Id):
@@ -74,7 +74,7 @@ def aggiorna_lasso(Id):
 
 	while True:
 		dormi_fino_alle(4, 44)
-		logit('Lasso: aggiornamento '+str(datetime.datetime.now()))
+		logit('Lasso: aggiornamento', datetime.datetime.now())
 		try:
 			lassofile = urllib.urlopen("http://www.spamhaus.org/drop/drop.lasso")
 		except:
@@ -91,12 +91,12 @@ def aggiorna_lasso(Id):
 			try:
 				cidr = netaddr.IPNetwork(cidr)
 			except:
-				logit('Lasso: errore con '+cidr)
+				logit('Lasso: errore con', cidr)
 				continue
 			try:
 				db.execute("insert into CIDR (CIDR, SIZE, NAME, CATEGORY) values (%s,%s,%s,'lasso')", (cidr, cidr.size, note.strip()))
 			except:
-				logit('Lasso: errore db con '+cidr)
+				logit('Lasso: errore db con', cidr)
 		del lassofile
 
 		db.close()
@@ -106,7 +106,7 @@ def aggiorna_uce(Id):
 
 	while True:
 		dormi_fino_alle(5, 55)
-		logit('UCE: aggiornamento '+str(datetime.datetime.now()))
+		logit('UCE: aggiornamento', datetime.datetime.now())
 
 		#variante con UCE3: os.system('/usr/bin/rsync -aPz --compress-level=9 rsync-mirrors.uceprotect.net::RBLDNSD-ALL/dnsbl-3.uceprotect.net /tmp/.dnsbl-3.uceprotect.net')
 		returncode = os.system('/usr/bin/rsync -aqz --no-motd --compress-level=9 rsync-mirrors.uceprotect.net::RBLDNSD-ALL/dnsbl-2.uceprotect.net /tmp/.dnsbl-2.uceprotect.net')
@@ -125,7 +125,7 @@ def aggiorna_uce(Id):
 			try:
 				cidr = netaddr.IPNetwork(cidr)
 			except:
-				logit('UCE: CIDR formalmente sbagliata '+cidr)
+				logit('UCE: CIDR formalmente sbagliata', cidr)
 				continue
 			try:
 				db.execute("insert into CIDR(CIDR, NAME, SIZE, CATEGORY) values (%s,%s,%s,'uce')", (cidr, note, cidr.size))
@@ -150,13 +150,13 @@ def aggiorna_pbl(Id):
 			try: # controllo la validita' dei dati
 				tmp = netaddr.IPAddress(IP)
 			except:
-				logit('WebPBL: IP non valido '+IP)
+				logit('WebPBL: IP non valido', IP)
 				db.execute("delete from PBLURL where URL=%s",(IP,))
 				continue
 			try:
 				CIDR = netaddr.IPNetwork(CIDR)
 			except:
-				logit("WebPBL: CIDR non valida "+CIDR)
+				logit("WebPBL: CIDR non valida", CIDR)
 				db.execute("delete from PBLURL where URL=%s",(IP,))
 				continue
 
@@ -166,14 +166,14 @@ def aggiorna_pbl(Id):
 			#	continue
 
 			if not netaddr.ip.all_matching_cidrs(netaddr.IPAddress(IP), [netaddr.IPNetwork(CIDR),]):
-				logit("WebPBL: IP/CIDR non combaciano "+str(IP)+" "+str(CIDR))
+				logit("WebPBL: IP/CIDR non combaciano", IP, CIDR)
 				db.execute("delete from PBLURL where URL=%s",(IP,))
 				continue
 
 			try: # tutto ok, quindi inserisco
 				db.execute("insert into CIDR (CIDR, SIZE, CATEGORY) values (%s,%s,'pbl')", (CIDR, CIDR.size))
 			except:
-				logit("WebPBL: fallito inserimento "+str(CIDR))
+				logit("WebPBL: fallito inserimento", CIDR)
 			db.execute("delete from PBLURL where URL=%s",(IP,))
 
 		# ripeto il controllo su tutti gli IP rimasti
@@ -183,11 +183,11 @@ def aggiorna_pbl(Id):
 			try:
 				tmp = netaddr.IPAddress(IP)
 			except:
-				logit('WebPBL: non è un IP valido '+IP)
+				logit('WebPBL: non è un IP valido', IP)
 				db.execute("delete from PBLURL where URL=%s",(IP,))
 				continue
 			if ip_gia_in_cidr(IP):
-				logit("WebPBL: gia' mappato "+IP)
+				logit("WebPBL: gia' mappato", IP)
 				db.execute("delete from PBLURL where URL=%s",(IP,))
 		db.close()
 
@@ -196,7 +196,7 @@ def blocca_in_iptables(indirizzo_da_bloccare, bloccalo_per):
 		
 	fino_al_timestamp = str( datetime.datetime.now() + datetime.timedelta(hours = 12 * bloccalo_per) ) # calcolo il timestamp di fine
 	if subprocess.call(['/sbin/iptables', '-A', 'fucklog', '-s', indirizzo_da_bloccare, '--protocol', 'tcp', '--dport', '25', '-j', 'DROP'], shell=False):
-		logit('BloccaIpTables: errore iptables ' + indirizzo_da_bloccare)
+		logit('BloccaIpTables: errore IpTables', indirizzo_da_bloccare)
 	else:
 		db = connetto_db()
 		db.execute("insert into BLOCKED (IP, END) values (%s, %s)", (indirizzo_da_bloccare, fino_al_timestamp))
@@ -225,7 +225,7 @@ def gia_in_blocco(IP):
 	db.execute('select IP from BLOCKED where IP=%s', (IP,))
 	tmp = db.fetchone()
 	if tmp:
-		if Debug: logit('ControlloIptables: '+IP+' risulta in IpTables '+str(tmp[0]))
+		if Debug: logit('ControlloIptables:', IP, 'risulta in IpTables ', tmp[0])
 		return True
 	else:
 		return False
@@ -276,13 +276,13 @@ def lettore(Id):
 						IP, DNS, FROM, TO = m.group(2), m.group(1), None, None
 						if IP == 'unknown' or DNS != 'unknown': continue
 					if not gia_in_blocco(IP): # controllo che l'IP non sia gia' bloccato
-						if Debug: logit('Log: '+IP+' non bloccato')
+						if Debug: logit('Log:', IP, 'non bloccato')
 						if DNS == 'unknown': DNS = None
 						CIDR_dello_IP = ip_gia_in_cidr(IP) # controllo se l'IP appartiene ad una classe nota
 						if CIDR_dello_IP: # se è di classe nota
-							if Debug: logit('Log: '+IP+' è di una classe nota')
+							if Debug: logit('Log:', IP, 'è di una classe nota')
 							if gia_in_blocco(CIDR_dello_IP): # controllo che la CIDR dell'IP non sia gia' bloccata
-								if Debug: logit('Log: '+IP+' risulta la sua CIDR gia\' in iptables '+CIDR_dello_IP)
+								if Debug: logit('Log:', IP, 'risulta la sua CIDR già in iptables', CIDR_dello_IP)
 								continue
 							else: # se non è gia' bloccato
 								db.execute('select COUNTER from CIDRARC where CIDR=%s', (CIDR_dello_IP,)) # ricavo fino a quando bloccarlo
@@ -292,16 +292,16 @@ def lettore(Id):
 								try: # aggiorno il contatore nel DB
 									db.execute("update CIDRARC set counter=%s where CIDR=%s", (bloccalo_per, CIDR_dello_IP))
 								except:
-									logit('Log: problema aggiornamento CIDR '+CIDR_dello_IP)
+									logit('Log: problema aggiornamento CIDR', CIDR_dello_IP)
 								indirizzo_da_bloccare = CIDR_dello_IP # definisco l'IP da bloccare
-								if Debug: logit('Log: '+IP+' blocco la CIDR '+str(indirizzo_da_bloccare)+' con moltiplicatore '+str(bloccalo_per))
+								if Debug: logit('Log:', IP, 'blocco la CIDR', indirizzo_da_bloccare, 'con moltiplicatore ', bloccalo_per)
 								try: # ma aggiorno anche il singolo IP nell'elenco IP, per avere chi ha innescato la CIDR
 									db.execute("insert into IP (IP, DNS, FROOM, TOO, REASON, LINE, GEOIP) values (INET_ATON(%s), %s, %s, %s, %s, %s, %s)", (IP, DNS, FROM, TO, REASON, log_line, nazione_dello_ip(IP)))
 								except db.IntegrityError:
 									db.execute("update IP set DNS=%s, FROOM=%s, TOO=%s, REASON=%s, LINE=%s, counter=counter+1, DATE=CURRENT_TIMESTAMP where IP=INET_ATON(%s)", (DNS, FROM, TO, REASON, log_line, IP))								
 						else: # se non ricado in nessuna classe nota, opero sulla singola voce
 							if ip_in_pbl(IP): # se risulta in PBL, ma non nelle CIDR, accodo per il controllo manuale
-								if Debug: logit('Log: '+IP+' risulta in PBL. Lo accodo per il web')
+								if Debug: logit('Log:', IP, 'risulta in PBL. Lo accodo per il web')
 								verifica_manuale_pbl(IP)
 							db.execute('select COUNTER from IP where IP=INET_ATON(%s)', (IP,)) # ricavo fino a quando bloccarlo
 							tmp = db.fetchone()
@@ -312,16 +312,16 @@ def lettore(Id):
 							except db.IntegrityError:
 								db.execute("update IP set DNS=%s, FROOM=%s, TOO=%s, REASON=%s, LINE=%s, counter=counter+1, DATE=CURRENT_TIMESTAMP where IP=INET_ATON(%s)", (DNS, FROM, TO, REASON, log_line, IP))
 							indirizzo_da_bloccare = IP
-						if Debug: logit('Log: '+IP+' bloccato con moltiplicatore '+str(bloccalo_per))
+						if Debug: logit('Log:', IP, 'bloccato con moltiplicatore', bloccalo_per)
 						blocca_in_iptables(indirizzo_da_bloccare, bloccalo_per)
-						logit("Log: "+indirizzo_da_bloccare+'|'+str(bloccalo_per)+'|'+str(DNS)+'|'+str(FROM)+'|'+str(TO)+'|'+RegExpsReason[REASON])
-		logit('Log: controllato in '+str(time.time() - cronometro)+' secondi')
+						logit("Log:", indirizzo_da_bloccare, '|', bloccalo_per, '|', DNS, '|', FROM, '|', TO, '|', RegExpsReason[REASON])
+		logit('Log: controllato in', time.time() - cronometro, 'secondi')
 		time.sleep(60*interval)
 
 def logit(*args):
 	"""Ricevo un numero di argomenti a piacere, li salvo come unica stringa nei log"""
 
-	linea_log = datetime.datetime.now().strftime('%H:%M:%S')
+	linea_log = datetime.datetime.now().strftime('%H:%M:%S')+': '
 
 	try:
 		linea_log += ' '.join(args)
@@ -371,9 +371,8 @@ def pbl_expire(Id):
 				ip_to_test = CIDR[dadi.randint(0, CIDR.size - 1)] # estraggo un IP a caso della CIDR
 				if not ip_gia_in_cidr(ip_to_test): # se non risulta più in PBL
 					cidr_cancellate += 1 # incremento le voci cancellate
-					logit('PBL Expire: elimino '+str(CIDR)+' - controllate: '+str(cidr_controllate)+' - cancellate: '+str(cidr_cancellate))
+					logit('PBL Expire: elimino',CIDR,'- controllate:',cidr_controllate,'- cancellate:',cidr_cancellate)
 					db.execute("delete from CIDR where CIDR=%s", (CIDR,))
-					# qui ci andrebbe l'aggiornamento di CIDRARC
 				else:
 					db.execute("update CIDR set LASTUPDATE=CURRENT_TIMESTAMP where CIDR=%s", (CIDR,))
 				time.sleep(pausa_tra_le_query)
@@ -389,7 +388,7 @@ def rimozione_ip_vecchi(Id):
 		db.execute('select count(*) from IP where DATE < (CURRENT_TIMESTAMP() - INTERVAL 4 MONTH)')
 		tmp = db.fetchone()
 		if tmp[0] != 0: # ho IP da eliminare
-			logit('RimozioneIP: rimossi '+str(tmp[0])+' IP')
+			logit('RimozioneIP: rimossi', tmp[0], 'IP')
 			db.execute('delete from IP where DATE < (CURRENT_TIMESTAMP() - INTERVAL 4 MONTH)')
 		db.close()
 
@@ -403,11 +402,11 @@ def scadenza_iptables(Id):
 		db.execute('select IP from BLOCKED where END < CURRENT_TIMESTAMP()')
 		for IP in db.fetchall():
 			if subprocess.call(['/sbin/iptables', '-D', 'fucklog', '-s', IP[0], '--protocol', 'tcp', '--dport', '25', '-j', 'DROP'], shell=False):
-				logit('DelIpTables: errore su rimozione '+IP[0])
+				logit('DelIpTables: errore su rimozione', IP[0])
 				continue
 			else:
 				db.execute('delete from BLOCKED where IP=%s', (IP[0],))
-				logit('DelIpTables: segato '+IP[0])
+				logit('DelIpTables: segato', IP[0])
 
 def statistiche_mrtg(Id):
 	"""Aggiorno a cadenza fissa le statistiche per MRTG"""
