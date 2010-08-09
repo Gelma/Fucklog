@@ -481,7 +481,7 @@ if __name__ == "__main__":
 
 	if True: # controllo validita' del file di log
 		if os.path.isfile(postfix_log_file):
-			grep_command = "/bin/grep --mmap -E '(fully-qualified|blocked|lost connection|too many errors|Relay access denied)' " + postfix_log_file
+			grep_command = "/bin/grep -E '(fully-qualified|blocked|lost connection|too many errors|Relay access denied)' " + postfix_log_file
 		else:
 			logit("Main: postfix log file inutilizzabile", postfix_log_file)
 			print "Problema sul file di log", postfix_log_file
