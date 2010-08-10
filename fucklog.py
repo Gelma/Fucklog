@@ -5,8 +5,8 @@ import datetime
 import os
 import random
 import re
-import sys
 import subprocess
+import sys
 import thread
 import time
 import urllib
@@ -18,38 +18,39 @@ try:
 	import netaddr
 	import pygeoip
 except:
-	print """Import fallito. Ricorda che necessiti di questi moduli non standard
+	print """Import fallito. Bada che necessiti di questi moduli non standard
 	http://code.google.com/p/netaddr
 	python-mysqldb
 	pygeoip
 	python-dnspython"""
 	sys.exit()
 
-if True: # definizione variabili globali
-	mysql_host, mysql_user, mysql_passwd, mysql_db = "localhost", "fucklog", "pattinaggio", "fucklog"
-	interval				 = 5 # minutes
-	postfix_log_file 		 = "/var/log/everything/current"
-	Debug					 = False
-	contatore_pbl			 = 0
-	# Locks
-	lock_output_log_file	 = thread.allocate_lock()
-	lock_cidrarc			 = thread.allocate_lock()
-	# GeoIP
-	geoip_db_file			 = "/opt/GeoIP/GeoLiteCity.dat"
-	geoip_db				 = False
-	# Logfile
-	output_log_file			 = '/tmp/.log_file_fucklog.txt'
-	log_file 				 = open(output_log_file, 'a')
-	# MRTG files
-	file_mrtg_stats			 = open("/tmp/.fucklog_mrtg", 'w')
-	# RexExps
-	RegExps					 = []
-	RegExpsReason			 = ('rbl', 'helo', 'lost', 'many errors', 'norelay')
-	RegExps.append(re.compile('.*RCPT from (.*)\[(.*)\]:.*blocked using.*from=<(.*)> to=<(.*)> proto')) # RBL
-	RegExps.append(re.compile('.*NOQUEUE: reject: RCPT from (.*)\[(.*)\].*Helo command rejected: need fully-qualified hostname; from=<(.*)> to=<(.*)> proto')) # broken helo
-	RegExps.append(re.compile('.*\[postfix/smtpd\] lost connection after .* from (.*)\[(.*)\]')) # lost connection
-	RegExps.append(re.compile('.*\[postfix/smtpd\] too many errors after .* from (.*)\[(.*)\]')) # too many errors
-	RegExps.append(re.compile('.*RCPT from (.*)\[(.*)\].*Relay access denied.*from=<(.*)> to=<(.*)> proto')) # rely access denied
+# definizione variabili globali
+mysql_host, mysql_user,\
+mysql_passwd, mysql_db	= "localhost", "fucklog", "pattinaggio", "fucklog"
+interval				= 5 # minutes
+postfix_log_file 		= "/var/log/everything/current"
+Debug					= False
+contatore_pbl			= 0
+# Locks
+lock_output_log_file	= thread.allocate_lock()
+lock_cidrarc			= thread.allocate_lock()
+# GeoIP
+geoip_db_file			= "/opt/GeoIP/GeoLiteCity.dat"
+geoip_db				= False
+# Logfile
+output_log_file			= '/tmp/.log_file_fucklog.txt'
+log_file 				= open(output_log_file, 'a')
+# MRTG files
+file_mrtg_stats			= open("/tmp/.fucklog_mrtg", 'w')
+# RexExps
+RegExps					= []
+RegExpsReason			= ('rbl', 'helo', 'lost', 'many errors', 'norelay')
+RegExps.append(re.compile('.*RCPT from (.*)\[(.*)\]:.*blocked using.*from=<(.*)> to=<(.*)> proto')) # RBL
+RegExps.append(re.compile('.*NOQUEUE: reject: RCPT from (.*)\[(.*)\].*Helo command rejected: need fully-qualified hostname; from=<(.*)> to=<(.*)> proto')) # broken helo
+RegExps.append(re.compile('.*\[postfix/smtpd\] lost connection after .* from (.*)\[(.*)\]')) # lost connection
+RegExps.append(re.compile('.*\[postfix/smtpd\] too many errors after .* from (.*)\[(.*)\]')) # too many errors
+RegExps.append(re.compile('.*RCPT from (.*)\[(.*)\].*Relay access denied.*from=<(.*)> to=<(.*)> proto')) # rely access denied
 
 def aggiorna_cidrarc():
 	"""Prendo il contenuto di Cidr->Fucklog->MySQL, riduco alle classi minime, e infilo il risultato in CidrArc->Fucklog-MySQL"""
@@ -487,10 +488,10 @@ if __name__ == "__main__":
 			sys.exit(-1)
 
 	if True: # esecuzione dei thread
-		thread.start_new_thread(aggiorna_lasso, 			(1,))
+		thread.start_new_thread(aggiorna_lasso, 		(1,))
 		thread.start_new_thread(aggiorna_pbl, 			(2,))
 		thread.start_new_thread(aggiorna_uce, 			(3,))
-		thread.start_new_thread(pbl_expire, 				(4,))
+		thread.start_new_thread(pbl_expire, 			(4,))
 		thread.start_new_thread(rimozione_ip_vecchi, 	(5,))
 		thread.start_new_thread(statistiche_mrtg, 		(6,))
 		thread.start_new_thread(scadenza_iptables, 		(7,))
