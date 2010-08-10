@@ -1,33 +1,50 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-try:
-	import datetime, dns.resolver, dns.reversename, MySQLdb, netaddr, os, pygeoip, random, re, sys, subprocess, thread, time, urllib
+import datetime
+import os
+import random
+import re
+import sys
+import subprocess
+import thread
+import time
+import urllib
+
+try:	
+	import dns.resolver
+	import dns.reversename
+	import MySQLdb
+	import netaddr
+	import pygeoip
 except:
-	import sys
-	print "Import fallito. Ricorda che necessiti di questi moduli:\n\thttp://code.google.com/p/netaddr\n\tpygeoip\n\tpython-dnspython"
+	print """Import fallito. Ricorda che necessiti di questi moduli non standard
+	http://code.google.com/p/netaddr
+	python-mysqldb
+	pygeoip
+	python-dnspython"""
 	sys.exit()
 
 if True: # definizione variabili globali
 	mysql_host, mysql_user, mysql_passwd, mysql_db = "localhost", "fucklog", "pattinaggio", "fucklog"
-	interval				= 5 # minutes
-	postfix_log_file 		= "/var/log/everything/current"
-	Debug					= False
-	contatore_pbl			= 0
+	interval				 = 5 # minutes
+	postfix_log_file 		 = "/var/log/everything/current"
+	Debug					 = False
+	contatore_pbl			 = 0
 	# Locks
-	lock_output_log_file	= thread.allocate_lock()
-	lock_cidrarc			= thread.allocate_lock()
+	lock_output_log_file	 = thread.allocate_lock()
+	lock_cidrarc			 = thread.allocate_lock()
 	# GeoIP
-	geoip_db_file			= "/opt/GeoIP/GeoLiteCity.dat"
-	geoip_db				= False
+	geoip_db_file			 = "/opt/GeoIP/GeoLiteCity.dat"
+	geoip_db				 = False
 	# Logfile
-	output_log_file			= '/tmp/.log_file_fucklog.txt'
-	log_file 				= open(output_log_file,'a')
+	output_log_file			 = '/tmp/.log_file_fucklog.txt'
+	log_file 				 = open(output_log_file, 'a')
 	# MRTG files
-	file_mrtg_stats			= open("/tmp/.fucklog_mrtg", 'w')
+	file_mrtg_stats			 = open("/tmp/.fucklog_mrtg", 'w')
 	# RexExps
-	RegExps					= []
-	RegExpsReason			= ('rbl', 'helo', 'lost', 'many errors', 'norelay')
+	RegExps					 = []
+	RegExpsReason			 = ('rbl', 'helo', 'lost', 'many errors', 'norelay')
 	RegExps.append(re.compile('.*RCPT from (.*)\[(.*)\]:.*blocked using.*from=<(.*)> to=<(.*)> proto')) # RBL
 	RegExps.append(re.compile('.*NOQUEUE: reject: RCPT from (.*)\[(.*)\].*Helo command rejected: need fully-qualified hostname; from=<(.*)> to=<(.*)> proto')) # broken helo
 	RegExps.append(re.compile('.*\[postfix/smtpd\] lost connection after .* from (.*)\[(.*)\]')) # lost connection
@@ -62,7 +79,7 @@ def aggiorna_cidrarc():
 
 	for cidr in lista_cidrs_vecchi: # cancello i vecchi
 		if cidr not in lista_cidrs_nuovi:
-			logit('AggCidrarc: rimuovo',cidr)
+			logit('AggCidrarc: rimuovo', cidr)
 			db.execute('delete from CIDRARC where CIDR=%s', (cidr,))
 
 	db.close()
@@ -151,13 +168,13 @@ def aggiorna_pbl(Id):
 				tmp = netaddr.IPAddress(IP)
 			except:
 				logit('WebPBL: IP non valido', IP)
-				db.execute("delete from PBLURL where URL=%s",(IP,))
+				db.execute("delete from PBLURL where URL=%s", (IP,))
 				continue
 			try:
 				CIDR = netaddr.IPNetwork(CIDR)
 			except:
 				logit("WebPBL: CIDR non valida", CIDR)
-				db.execute("delete from PBLURL where URL=%s",(IP,))
+				db.execute("delete from PBLURL where URL=%s", (IP,))
 				continue
 
 			#if ip_gia_in_cidr(IP): # da riflettere: l'IP potrebbe gia' risultare in CIDR per altre classi intervenute nel frattempo
@@ -165,16 +182,16 @@ def aggiorna_pbl(Id):
 			#	db.execute("delete from PBLURL where URL=%s",(IP,))
 			#	continue
 
-			if not netaddr.ip.all_matching_cidrs(netaddr.IPAddress(IP), [netaddr.IPNetwork(CIDR),]):
+			if not netaddr.ip.all_matching_cidrs(netaddr.IPAddress(IP), [netaddr.IPNetwork(CIDR), ]):
 				logit("WebPBL: IP/CIDR non combaciano", IP, CIDR)
-				db.execute("delete from PBLURL where URL=%s",(IP,))
+				db.execute("delete from PBLURL where URL=%s", (IP,))
 				continue
 
 			try: # tutto ok, quindi inserisco
 				db.execute("insert into CIDR (CIDR, SIZE, CATEGORY) values (%s,%s,'pbl')", (CIDR, CIDR.size))
 			except:
 				logit("WebPBL: fallito inserimento", CIDR)
-			db.execute("delete from PBLURL where URL=%s",(IP,))
+			db.execute("delete from PBLURL where URL=%s", (IP,))
 
 		# ripeto il controllo su tutti gli IP rimasti
 		db.execute("select URL from PBLURL where CIDR is null")
@@ -184,17 +201,17 @@ def aggiorna_pbl(Id):
 				tmp = netaddr.IPAddress(IP)
 			except:
 				logit('WebPBL: non è un IP valido', IP)
-				db.execute("delete from PBLURL where URL=%s",(IP,))
+				db.execute("delete from PBLURL where URL=%s", (IP,))
 				continue
 			if ip_gia_in_cidr(IP):
 				logit("WebPBL: gia' mappato", IP)
-				db.execute("delete from PBLURL where URL=%s",(IP,))
+				db.execute("delete from PBLURL where URL=%s", (IP,))
 		db.close()
 
 def blocca_in_iptables(indirizzo_da_bloccare, bloccalo_per):
 	"""Ricevo IP e numero di giorni. Metto in IPTables e aggiorno Blocked->Fucklog->Mysql"""
 		
-	fino_al_timestamp = str( datetime.datetime.now() + datetime.timedelta(hours = 12 * bloccalo_per) ) # calcolo il timestamp di fine
+	fino_al_timestamp = str(datetime.datetime.now() + datetime.timedelta(hours=12 * bloccalo_per)) # calcolo il timestamp di fine
 	if subprocess.call(['/sbin/iptables', '-A', 'fucklog', '-s', indirizzo_da_bloccare, '--protocol', 'tcp', '--dport', '25', '-j', 'DROP'], shell=False):
 		logit('BloccaIpTables: errore IpTables', indirizzo_da_bloccare)
 	else:
@@ -216,7 +233,7 @@ def connetto_db():
 def dormi_fino_alle(ore, minuti):
 	"""Ricevo un orario nel formato h:m, e dormo fino ad allora"""
 
-	time.sleep( (datetime.datetime.now().replace(hour=ore, minute=minuti, second=0) - datetime.datetime.now()).seconds )
+	time.sleep((datetime.datetime.now().replace(hour=ore, minute=minuti, second=0) - datetime.datetime.now()).seconds)
 
 def gia_in_blocco(IP):
 	"""Ricevo un IP/CIDR. Restituisco Vero se l'IP è gia' bloccato in IPTABLES (controllando Blocked->Fucklog->MySQL)."""
@@ -316,21 +333,21 @@ def lettore(Id):
 						blocca_in_iptables(indirizzo_da_bloccare, bloccalo_per)
 						logit("Log:", indirizzo_da_bloccare, '|', bloccalo_per, '|', DNS, '|', FROM, '|', TO, '|', RegExpsReason[REASON])
 		logit('Log: controllato in', time.time() - cronometro, 'secondi')
-		time.sleep(60*interval)
+		time.sleep(60 * interval)
 
 def logit(*args):
 	"""Ricevo un numero di argomenti a piacere, li salvo come unica stringa nei log"""
 
-	linea_log = datetime.datetime.now().strftime('%H:%M:%S')+': '
+	linea_log = datetime.datetime.now().strftime('%H:%M:%S') + ': '
 
 	try:
 		linea_log += ' '.join(args)
 	except: # desumo che siano presenti argomenti non testuali
 		for item in args:
-			linea_log += ' '+str(item)
+			linea_log += ' ' + str(item)
 
 	lock_output_log_file.acquire()
-	log_file.write(linea_log+'\n')
+	log_file.write(linea_log + '\n')
 	log_file.flush()
 	lock_output_log_file.release()
 
@@ -371,7 +388,7 @@ def pbl_expire(Id):
 				ip_to_test = CIDR[dadi.randint(0, CIDR.size - 1)] # estraggo un IP a caso della CIDR
 				if not ip_gia_in_cidr(ip_to_test): # se non risulta più in PBL
 					cidr_cancellate += 1 # incremento le voci cancellate
-					logit('PBL Expire: elimino',CIDR,'- controllate:',cidr_controllate,'- cancellate:',cidr_cancellate)
+					logit('PBL Expire: elimino', CIDR, '- controllate:', cidr_controllate, '- cancellate:', cidr_cancellate)
 					db.execute("delete from CIDR where CIDR=%s", (CIDR,))
 				else:
 					db.execute("update CIDR set LASTUPDATE=CURRENT_TIMESTAMP where CIDR=%s", (CIDR,))
@@ -424,11 +441,11 @@ def statistiche_mrtg(Id):
 
 		file_mrtg_stats.seek(0)
 		file_mrtg_stats.truncate(0)
-		file_mrtg_stats.write(ip_totali+'\n'+ip_di_oggi+'\n')
-		file_mrtg_stats.write(ip_di_oggi+'/'+ip_totali+'\n')
+		file_mrtg_stats.write(ip_totali + '\n' + ip_di_oggi + '\n')
+		file_mrtg_stats.write(ip_di_oggi + '/' + ip_totali + '\n')
 		file_mrtg_stats.write('spam\n')
 		file_mrtg_stats.flush()
-		time.sleep(9*60)
+		time.sleep(9 * 60)
 
 def verifica_manuale_pbl(IP): 
 	"""Ricevo un IP e lo metto in coda per la verifica via WEB (PblUrl->Fucklog->MySQL)"""
@@ -438,7 +455,7 @@ def verifica_manuale_pbl(IP):
 		db.execute("insert into PBLURL (URL) values (%s)", (IP,))
 	except:
 		pass
-	os.system("echo 'http://mail.gelma.net/pbl_check.php'|mail -s 'cekka "+IP+"' andrea.gelmini@gmail.com")
+	os.system("echo 'http://mail.gelma.net/pbl_check.php'|mail -s 'cekka " + IP + "' andrea.gelmini@gmail.com")
 
 if __name__ == "__main__":
 	# Todo list:
@@ -454,12 +471,12 @@ if __name__ == "__main__":
 	if True: # ripristino delle regole di IpTables (va rivisto alla luce del jump di IpTables)
 		logit('Main: ripristino IpTables')
 		os.system("/sbin/iptables -D INPUT -p tcp --dport 25 -j fucklog") # elimino l'eventuale jump presente
-		for flag in ['F', 'X']: os.system("/sbin/iptables -"+flag+" fucklog") # per poter eliminare la catena fucklog
+		for flag in ['F', 'X']: os.system("/sbin/iptables -" + flag + " fucklog") # per poter eliminare la catena fucklog
 		os.system("/sbin/iptables -N fucklog") # ricreo la catena
 		os.system("/sbin/iptables -A INPUT -p tcp --dport 25 -j fucklog") # la punto
 		db.execute('delete from BLOCKED where END < CURRENT_TIMESTAMP()') # disintegro le regole scadute nel frattempo
 		db.execute('select IP from BLOCKED order by END') # e ripopolo
-		for IP in db.fetchall(): os.system("/sbin/iptables -A 'fucklog' -s "+IP[0]+" --protocol tcp --dport 25 -j DROP")
+		for IP in db.fetchall(): os.system("/sbin/iptables -A 'fucklog' -s " + IP[0] + " --protocol tcp --dport 25 -j DROP")
 
 	if True: # controllo validita' del file di log
 		if os.path.isfile(postfix_log_file):
@@ -470,14 +487,14 @@ if __name__ == "__main__":
 			sys.exit(-1)
 
 	if True: # esecuzione dei thread
-		thread.start_new_thread(aggiorna_lasso,			(1, ))
-		thread.start_new_thread(aggiorna_pbl,			(2, ))
-		thread.start_new_thread(aggiorna_uce,			(3, ))
-		thread.start_new_thread(pbl_expire,				(4, ))
-		thread.start_new_thread(rimozione_ip_vecchi,	(5, ))
-		thread.start_new_thread(statistiche_mrtg,		(6, ))
-		thread.start_new_thread(scadenza_iptables,		(7, ))
-		thread.start_new_thread(lettore,				(8, ))
+		thread.start_new_thread(aggiorna_lasso, 			(1,))
+		thread.start_new_thread(aggiorna_pbl, 			(2,))
+		thread.start_new_thread(aggiorna_uce, 			(3,))
+		thread.start_new_thread(pbl_expire, 				(4,))
+		thread.start_new_thread(rimozione_ip_vecchi, 	(5,))
+		thread.start_new_thread(statistiche_mrtg, 		(6,))
+		thread.start_new_thread(scadenza_iptables, 		(7,))
+		thread.start_new_thread(lettore, 				(8,))
 
 	while True:
 		command = raw_input("What's up:")
@@ -491,3 +508,4 @@ if __name__ == "__main__":
 			print contatore_pbl
 		if command == "h":
 			print "Help:\n\tq: quit\n\ta: Aggiorna CidrArc\n\tp: Stampa numero di richieste PBL\n"
+
