@@ -1,24 +1,35 @@
 == Cos'e' fucklokg ? ==
-Fucklog e' uno script in python  che "parsa" i log di postfix per trovare 
-"spammatori gia' noti" e droppare il traffico proveniente da loro direttamente
+Fucklog è uno script in python che legge i log di postfix al fine di scovare
+"spammatori già noti" e bloccarne il traffico direttamente
 da netfilter per un periodo di tempo variabile a seconda della lora insistenza. :)
 
 == Di che cosa ho bisogno per farlo funzionare ? ==
 Fucklog usa alcuni moduli python non standard quali:
-- MySQL-Python  - http://mysql-python.sourceforge.net/
-- dnspython - http://www.dnspython.org/
-- netaddr - http://code.google.com/p/netaddr
-- python-geoip - https://code.google.com/p/python-geoip/
+- MySQL-Python:		http://mysql-python.sourceforge.net/		(trovi il .deb)
+- dnspython:		http://www.dnspython.org/					(trovi il .deb)
+- netaddr:			http://code.google.com/p/netaddr			(easy_install)
+- python-geoip:		https://code.google.com/p/python-geoip/		(easy_install)
 
-Inoltre utilizza software esterni quali :
-- rsync - per aggiornare le regole di UCEPROTECT
-- mysql - vengono conservati tutti i dati (davvero?)
-- iptables - per interagire con netfilter :)
-- mrtg - per realizzare bellissimi grafici :)
+Inoltre utilizza software esterni quali:
+- rsync:		per aggiornare le regole di UCEPROTECT
+- mysql:		vengono conservati tutti i dati (davvero?)
+- iptables:		per interagire con netfilter :)
+- mrtg:			per realizzare bellissimi grafici :)
 
-Per installare tutto sotto debian :
+Per installare il tutto sotto debian:
 apt-get install python-mysqldb python-geoip python-netaddr python-dnspython python \
 		rsync mrtg iptables mysql-server
 
-Per far funzionare fucklog avrai bisogno di un file di un file fucklogrc contenente
+Per far funzionare fucklog avrai bisogno di un file fucklogrc contenente
 la configurazione ( vedi fucklogrc.example )
+
+== Ma davvero qualcuno lo usa? ==
+Da ormai un anno c'è ben *una* installazione funzionante (ovviamente di
+classe enterprise).
+Tra le altre cose viene usato per filtrare le connessioni SMTP al dominio
+lugbs.linux.it.
+
+== Non vedo l'ora di far girare questa cialtronata sui miei server,
+   ma ho delle noie. Chi posso contattare? ===
+Se al 113 non sanno darti risposte soddisfacenti, puoi scrivere a
+cleptomani@gelma.net
