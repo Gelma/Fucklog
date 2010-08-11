@@ -18,11 +18,7 @@ try:
 	import netaddr
 	import pygeoip
 except:
-	print """Import fallito. Bada che necessiti di questi moduli non standard
-	http://code.google.com/p/netaddr
-	python-mysqldb
-	pygeoip
-	python-dnspython"""
+	print """Bada che necessiti di moduli non standard. Beccati il README."""
 	sys.exit()
 
 # definizione variabili globali
