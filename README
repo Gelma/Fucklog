@@ -19,3 +19,6 @@ Inoltre utilizza software esterni quali :
 Per installare tutto sotto debian :
 apt-get install python-mysqldb python-geoip python-netaddr python-dnspython python \
 		rsync mrtg iptables mysql-server
+
+Per far funzionare fucklog avrai bisogno di un file di un file fucklogrc contenente
+la configurazione ( vedi fucklogrc.example )
