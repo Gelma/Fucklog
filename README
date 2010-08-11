@@ -1,7 +1,7 @@
-== Cos'e' fucklokg ? ==
-Fucklog è uno script in python che legge i log di postfix al fine di scovare
-"spammatori già noti" e bloccarne il traffico direttamente
-da netfilter per un periodo di tempo variabile a seconda della lora insistenza. :)
+== Cos'e' fucklokg? ==
+Fucklog è uno script in Python che legge i log di postfix, al fine di scovare
+"spammatori già noti", per bloccarne il traffico direttamente
+da netfilter, per un periodo di tempo variabile a seconda della loro insistenza. :)
 
 == Di che cosa ho bisogno per farlo funzionare ? ==
 Fucklog usa alcuni moduli python non standard quali:
