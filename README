@@ -16,12 +16,15 @@ Inoltre utilizza software esterni quali:
 - iptables:		per interagire con netfilter :)
 - mrtg:			per realizzare bellissimi grafici :)
 
-Per installare il tutto sotto debian:
+Per installare il tutto sotto Debian e derivate:
 apt-get install python-mysqldb python-geoip python-netaddr python-dnspython python \
 		rsync mrtg iptables mysql-server
 
 Per far funzionare fucklog avrai bisogno di un file fucklogrc contenente
-la configurazione ( vedi fucklogrc.example )
+la configurazione ( vedi fucklogrc.example ).
+
+Se vuoi poter anche aggiornare le voci relative alla lista PBL, dovrai
+utilizzare/installare anche lo script PHP (pbl_check.php).
 
 == Ma davvero qualcuno lo usa? ==
 Da ormai un anno c'è ben *una* installazione funzionante (ovviamente di
