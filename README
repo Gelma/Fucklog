@@ -1,0 +1,21 @@
+== Cos'e' fucklokg ? ==
+Fucklog e' uno script in python  che "parsa" i log di postfix per trovare 
+"spammatori gia' noti" e droppare il traffico proveniente da loro direttamente
+da netfilter per un periodo di tempo variabile a seconda della lora insistenza. :)
+
+== Di che cosa ho bisogno per farlo funzionare ? ==
+Fucklog usa alcuni moduli python non standard quali:
+- MySQL-Python  - http://mysql-python.sourceforge.net/
+- dnspython - http://www.dnspython.org/
+- netaddr - http://code.google.com/p/netaddr
+- python-geoip - https://code.google.com/p/python-geoip/
+
+Inoltre utilizza software esterni quali :
+- rsync - per aggiornare le regole di UCEPROTECT
+- mysql - vengono conservati tutti i dati (davvero?)
+- iptables - per interagire con netfilter :)
+- mrtg - per realizzare bellissimi grafici :)
+
+Per installare tutto sotto debian :
+apt-get install python-mysqldb python-geoip python-netaddr python-dnspython python \
+		rsync mrtg iptables mysql-server
