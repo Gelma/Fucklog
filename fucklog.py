@@ -146,7 +146,7 @@ def aggiorna_uce(Id):
 		db.execute("delete from CIDR where CATEGORY='uce'")
 
 		with open('/tmp/.dnsbl-2.uceprotect.net', 'r') as ucefile:
-    		for line in ucefile:
+			for line in ucefile:
 				if line.startswith('#') or line.startswith('$') or line.startswith('$') or line.startswith(':') or line.startswith('!') or line.startswith('127.0.0.2  Test Record'):
 					continue
 				note = line.split('because')[1].split('are hosted')[0].strip()
