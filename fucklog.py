@@ -133,7 +133,7 @@ def aggiorna_uce(Id):
 
 	# Per gli elenchi UCE 1 e 3 basta modificare la cifra nel comando seguente
 	uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd --compress-level=9 rsync-mirrors.uceprotect.net::RBLDNSD-ALL/dnsbl-2.uceprotect.net /tmp/.dnsbl-2.uceprotect.net')
- 
+
 	while True:
 		dormi_fino_alle(5, 55)
 		logit('UCE: aggiornamento', datetime.datetime.now())
@@ -295,7 +295,7 @@ def lettore(Id):
 	while True:
 		logit('Log: nuovo giro')
 		cronometro = time.time()
-		for log_line in os.popen(grep_command):
+		for log_line in subprocess.Popen(grep_command, shell=False, stdout=subprocess.PIPE).communicate()[0].split('\n'):
 			for REASON, regexp in enumerate(RegExps): # REASON=0 (rbl) 1 (helo) 2 (lost connection) 3 (too many errors) 4 (relay access)
 				m = regexp.match(log_line) # applico le regexp
 				if m: # se combaciano
@@ -493,6 +493,7 @@ if __name__ == "__main__":
 	if True: # controllo validita' del file di log
 		if os.path.isfile(postfix_log_file):
 			grep_command = "/bin/grep -E '(fully-qualified|blocked|lost connection|too many errors|Relay access denied)' " + postfix_log_file
+			grep_command = shlex.split(grep_command)
 		else:
 			logit("Main: postfix log file inutilizzabile", postfix_log_file)
 			print "Problema sul file di log", postfix_log_file
