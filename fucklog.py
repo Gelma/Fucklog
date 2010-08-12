@@ -482,14 +482,14 @@ if __name__ == "__main__":
 
 	if True: # ripristino delle regole di IpTables (va rivisto alla luce del jump di IpTables)
 		logit('Main: ripristino IpTables')
-		os.system("/sbin/iptables -D INPUT -p tcp --dport 25 -j fucklog") # elimino l'eventuale jump presente
-		for flag in ['F', 'X']: os.system("/sbin/iptables -" + flag + " fucklog") # per poter eliminare la catena fucklog
-		os.system("/sbin/iptables -N fucklog") # ricreo la catena
-		os.system("/sbin/iptables -A INPUT -p tcp --dport 25 -j fucklog") # la punto
+		subprocess.call(shlex.split("/sbin/iptables -D INPUT -p tcp --dport 25 -j fucklog")) # elimino l'eventuale jump presente
+		for flag in ['F', 'X']: subprocess.call(shlex.split("/sbin/iptables -"+flag+" fucklog")) # per poter eliminare la catena fucklog
+		subprocess.call(shlex.split("/sbin/iptables -N fucklog")) # ricreo la catena
+		subprocess.call(shlex.split("/sbin/iptables -A INPUT -p tcp --dport 25 -j fucklog")) # la punto
 		db.execute('delete from BLOCKED where END < CURRENT_TIMESTAMP()') # disintegro le regole scadute nel frattempo
 		db.execute('select IP from BLOCKED order by END') # e ripopolo
-		for IP in db.fetchall(): os.system("/sbin/iptables -A 'fucklog' -s " + IP[0] + " --protocol tcp --dport 25 -j DROP")
-
+		for IP in db.fetchall(): subprocess.call(shlex.split("/sbin/iptables -A 'fucklog' -s "+IP[0]+" --protocol tcp --dport 25 -j DROP"))
+		
 	if True: # controllo validita' del file di log
 		if os.path.isfile(postfix_log_file):
 			grep_command = "/bin/grep -E '(fully-qualified|blocked|lost connection|too many errors|Relay access denied)' " + postfix_log_file
