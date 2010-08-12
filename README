@@ -20,8 +20,8 @@ Per installare il tutto sotto Debian e derivate:
 apt-get install python-mysqldb python-geoip python-netaddr python-dnspython python \
 		rsync mrtg iptables mysql-server
 
-Per far funzionare fucklog avrai bisogno di un file fucklogrc contenente
-la configurazione ( vedi fucklogrc.example ).
+Per far funzionare fucklog hai bisogno di un file di configurazione.
+Trai principio e ispirazione da fucklog.conf.esempio.
 
 Se vuoi poter anche aggiornare le voci relative alla lista PBL, dovrai
 utilizzare/installare anche lo script PHP (pbl_check.php).

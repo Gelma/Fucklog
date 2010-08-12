@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import ConfigParser
 import datetime
 import os
 import random
@@ -33,33 +34,6 @@ try:
 except:
 	print """Manca il package pygeoip (code.google.com/p/python-geoip)."""
 	sys.exit(-1)
-
-# definizione variabili globali
-mysql_host, mysql_user,\
-mysql_passwd, mysql_db	= "localhost", "fucklog", "pattinaggio", "fucklog"
-interval				= 5 # minutes
-postfix_log_file 		= "/var/log/everything/current"
-Debug					= False
-contatore_pbl			= 0
-# Locks
-lock_output_log_file	= thread.allocate_lock()
-lock_cidrarc			= thread.allocate_lock()
-# GeoIP
-geoip_db_file			= "/opt/GeoIP/GeoLiteCity.dat"
-geoip_db				= False
-# Logfile
-output_log_file			= '/tmp/.log_file_fucklog.txt'
-log_file 				= open(output_log_file, 'a')
-# MRTG files
-file_mrtg_stats			= open("/tmp/.fucklog_mrtg", 'w')
-# RexExps
-RegExps					= []
-RegExpsReason			= ('rbl', 'helo', 'lost', 'many errors', 'norelay')
-RegExps.append(re.compile('.*RCPT from (.*)\[(.*)\]:.*blocked using.*from=<(.*)> to=<(.*)> proto')) # RBL
-RegExps.append(re.compile('.*NOQUEUE: reject: RCPT from (.*)\[(.*)\].*Helo command rejected: need fully-qualified hostname; from=<(.*)> to=<(.*)> proto')) # broken helo
-RegExps.append(re.compile('.*\[postfix/smtpd\] lost connection after .* from (.*)\[(.*)\]')) # lost connection
-RegExps.append(re.compile('.*\[postfix/smtpd\] too many errors after .* from (.*)\[(.*)\]')) # too many errors
-RegExps.append(re.compile('.*RCPT from (.*)\[(.*)\].*Relay access denied.*from=<(.*)> to=<(.*)> proto')) # rely access denied
 
 def aggiorna_cidrarc():
 	"""Prendo il contenuto di Cidr->Fucklog->MySQL, riduco alle classi minime, e infilo il risultato in CidrArc->Fucklog-MySQL"""
@@ -100,7 +74,7 @@ def aggiorna_lasso(Id):
 	"""Prelevo la lista Lasso e aggiorno Cidr->Fucklog->Mysql"""
 
 	while True:
-		dormi_fino_alle(4, 44)
+		dormi_fino_alle(lasso_ore, lasso_minuti)
 		logit('Lasso: aggiornamento', datetime.datetime.now())
 		try:
 			lassofile = urllib.urlopen("http://www.spamhaus.org/drop/drop.lasso")
@@ -135,7 +109,7 @@ def aggiorna_uce(Id):
 	uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd --compress-level=9 rsync-mirrors.uceprotect.net::RBLDNSD-ALL/dnsbl-2.uceprotect.net /tmp/.dnsbl-2.uceprotect.net')
 
 	while True:
-		dormi_fino_alle(5, 55)
+		dormi_fino_alle(uce_ore, uce_minuti)
 		logit('UCE: aggiornamento', datetime.datetime.now())
 	
 		if subprocess.call(uce_rsync) != 0:
@@ -233,7 +207,6 @@ def blocca_in_iptables(indirizzo_da_bloccare, bloccalo_per):
 
 def connetto_db():
 	"""Torno una connessione al DB MySQL"""
-
 	try:
 		return MySQLdb.connect(host=mysql_host, user=mysql_user, passwd=mysql_passwd, db=mysql_db).cursor()
 	except:
@@ -245,7 +218,7 @@ def connetto_db():
 def dormi_fino_alle(ore, minuti):
 	"""Ricevo un orario nel formato h:m, e dormo fino ad allora"""
 
-	time.sleep((datetime.datetime.now().replace(hour=ore, minute=minuti, second=0) - datetime.datetime.now()).seconds)
+	time.sleep((datetime.datetime.now().replace(hour=int(ore), minute=int(minuti), second=0) - datetime.datetime.now()).seconds)
 
 def gia_in_blocco(IP):
 	"""Ricevo un IP/CIDR. Restituisco Vero se l'IP è gia' bloccato in IPTABLES (controllando Blocked->Fucklog->MySQL)."""
@@ -345,7 +318,7 @@ def lettore(Id):
 						blocca_in_iptables(indirizzo_da_bloccare, bloccalo_per)
 						logit("Log:", indirizzo_da_bloccare, '|', bloccalo_per, '|', DNS, '|', FROM, '|', TO, '|', RegExpsReason[REASON])
 		logit('Log: controllato in', time.time() - cronometro, 'secondi')
-		time.sleep(60 * interval)
+		time.sleep(60 * intervallo)
 
 def logit(*args):
 	"""Ricevo un numero di argomenti a piacere, li salvo come unica stringa nei log"""
@@ -467,8 +440,10 @@ def verifica_manuale_pbl(IP):
 		db.execute("insert into PBLURL (URL) values (%s)", (IP,))
 	except:
 		pass
-	os.system("echo 'http://mail.gelma.net/pbl_check.php'|mail -s 'cekka " + IP + "' andrea.gelmini@gmail.com")
-
+	echo_command = shlex.split("echo 'http://mail.gelma.net/pbl_check.php'")
+	mail_command = shlex.split("mail -s 'cekka %s' %s" % (IP, pbl_email))
+	multiprocess.Popen(mail_str, stdin=multiprocess.Popen(echo_str, stdout=PIPE).stdout, stdout=PIPE).wait()
+	
 if __name__ == "__main__":
 	# Todo list:
 	# controllo per unica istanza in esecuzione
@@ -477,10 +452,56 @@ if __name__ == "__main__":
 	# aggiornamento automatico geoip db (dovrebbe essere aggiornato una volta al mese)
 	# rivedere i costrutti condizionati (eccessivo uso di continue)
 
+	if True: # lettura della configurazione e definizione delle variabili globali
+		configurazione = ConfigParser.ConfigParser()
+		confp = configurazione.read(['/etc/fucklog.conf', os.path.join(os.environ["HOME"], '.fucklog.conf'), 'fucklog.conf'])
+		if confp: # Non posso utilizzare logit, mi mancano troppe informazioni
+			print "Main: file di configurazione letti: ",' - '.join(confp)
+			del confp
+		else:
+			print "Main: nessun file di configurazione valido"
+			sys.exit(-1)
+		# MySQL
+		mysql_host       = configurazione.get('MySQL', 'host', 1)
+		mysql_user       = configurazione.get('MySQL', 'user', 1)
+		mysql_passwd     = configurazione.get('MySQL', 'password', 1)
+		mysql_db         = configurazione.get('MySQL', 'database', 1)
+		# Postfix
+		intervallo       = configurazione.getint('Postfix', 'intervallo')
+		postfix_log_file = configurazione.get('Postfix', 'mail_log')
+		# Generali
+		Debug			 = configurazione.getint('Generali', 'debug')
+		output_log_file	 = configurazione.get('Generali', 'log_file')
+		log_file		 = open(output_log_file, 'a')
+		lasso_ore, \
+		lasso_minuti     = configurazione.get('Generali', 'aggiorna_lasso').split(":")
+		uce_ore, \
+		uce_minuti       = configurazione.get('Generali', 'aggiorna_uce').split(":")
+		#   GeoIP
+		geoip_db_file	 = configurazione.get('Generali', 'geoip_db_file')
+		geoip_db		 = False
+		#   MRTG
+		file_mrtg		 = configurazione.get('Generali', 'mrtg_file')
+		file_mrtg_stats	 = open(file_mrtg, 'w')
+		# PBL
+		contatore_pbl    = 0
+		pbl_email        = configurazione.get('Generali', 'pbl_email')
+		# Locks
+		lock_output_log_file	= thread.allocate_lock()
+		lock_cidrarc			= thread.allocate_lock()
+		# RexExps
+		RegExps					= []
+		RegExpsReason			= ('rbl', 'helo', 'lost', 'many errors', 'norelay')
+		RegExps.append(re.compile('.*RCPT from (.*)\[(.*)\]:.*blocked using.*from=<(.*)> to=<(.*)> proto')) # RBL
+		RegExps.append(re.compile('.*NOQUEUE: reject: RCPT from (.*)\[(.*)\].*Helo command rejected: need fully-qualified hostname; from=<(.*)> to=<(.*)> proto')) # broken helo
+		RegExps.append(re.compile('.*\[postfix/smtpd\] lost connection after .* from (.*)\[(.*)\]')) # lost connection
+		RegExps.append(re.compile('.*\[postfix/smtpd\] too many errors after .* from (.*)\[(.*)\]')) # too many errors
+		RegExps.append(re.compile('.*RCPT from (.*)\[(.*)\].*Relay access denied.*from=<(.*)> to=<(.*)> proto')) # rely access denied
+
 	logit("Fucklog: start")
 	db = connetto_db()
 
-	if True: # ripristino delle regole di IpTables (va rivisto alla luce del jump di IpTables)
+	if True: # ripristino delle regole di IpTables
 		logit('Main: ripristino IpTables')
 		subprocess.call(shlex.split("/sbin/iptables -D INPUT -p tcp --dport 25 -j fucklog")) # elimino l'eventuale jump presente
 		for flag in ['F', 'X']: subprocess.call(shlex.split("/sbin/iptables -"+flag+" fucklog")) # per poter eliminare la catena fucklog
@@ -513,6 +534,8 @@ if __name__ == "__main__":
 		command = raw_input("What's up:")
 		if command == "q":
 			logit("Main: clean shutdown")
+			file_mrtg_stats.close()
+			log_file.close()
 			sys.exit()
 		if command == "a":
 			print "aggiornamento CidrArc"
