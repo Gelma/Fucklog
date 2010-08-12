@@ -5,6 +5,7 @@ import datetime
 import os
 import random
 import re
+import shlex
 import subprocess
 import sys
 import thread
@@ -130,36 +131,38 @@ def aggiorna_lasso(Id):
 def aggiorna_uce(Id):
 	"""Aggiorno la lista UCE2 in Cidr->Fucklog->MySQL"""
 
+	# Per gli elenchi UCE 1 e 3 basta modificare la cifra nel comando seguente
+	uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd --compress-level=9 rsync-mirrors.uceprotect.net::RBLDNSD-ALL/dnsbl-2.uceprotect.net /tmp/.dnsbl-2.uceprotect.net')
+ 
 	while True:
 		dormi_fino_alle(5, 55)
 		logit('UCE: aggiornamento', datetime.datetime.now())
-
-		#variante con UCE3: os.system('/usr/bin/rsync -aPz --compress-level=9 rsync-mirrors.uceprotect.net::RBLDNSD-ALL/dnsbl-3.uceprotect.net /tmp/.dnsbl-3.uceprotect.net')
-		returncode = os.system('/usr/bin/rsync -aqz --no-motd --compress-level=9 rsync-mirrors.uceprotect.net::RBLDNSD-ALL/dnsbl-2.uceprotect.net /tmp/.dnsbl-2.uceprotect.net')
-		if returncode != 0:
+	
+		if subprocess.call(uce_rsync) != 0:
 			logit('UCE: errore con rsync')
 			continue
 
 		db = connetto_db()
 		db.execute("delete from CIDR where CATEGORY='uce'")
 
-		for line in os.popen("/bin/cat /tmp/.dnsbl-?.uceprotect.net"):
-			if line.startswith('#') or line.startswith('$') or line.startswith('$') or line.startswith(':') or line.startswith('!') or line.startswith('127.0.0.2  Test Record'):
-				continue
-			note = line.split('because')[1].split('are hosted')[0].strip()
-			cidr = line.split()[0]
-			try:
-				cidr = netaddr.IPNetwork(cidr)
-			except:
-				logit('UCE: CIDR formalmente sbagliata', cidr)
-				continue
-			try:
-				db.execute("insert into CIDR(CIDR, NAME, SIZE, CATEGORY) values (%s,%s,%s,'uce')", (cidr, note, cidr.size))
-			except:
-				pass # CIDR gia' presente nel DB
+		with open('/tmp/.dnsbl-2.uceprotect.net', 'r') as ucefile:
+    		for line in ucefile:
+				if line.startswith('#') or line.startswith('$') or line.startswith('$') or line.startswith(':') or line.startswith('!') or line.startswith('127.0.0.2  Test Record'):
+					continue
+				note = line.split('because')[1].split('are hosted')[0].strip()
+				cidr = line.split()[0]
+				try:
+					cidr = netaddr.IPNetwork(cidr)
+				except:
+					logit('UCE: CIDR formalmente sbagliata', cidr)
+					continue
+				try:
+					db.execute("insert into CIDR(CIDR, NAME, SIZE, CATEGORY) values (%s,%s,%s,'uce')", (cidr, note, cidr.size))
+				except:
+					pass # CIDR gia' presente nel DB
 
 		db.close()
-		aggiorna_cidrarc() # temporaneamente, faccio l'update dopo l'ultima operazione
+		aggiorna_cidrarc() # temporaneamente, faccio l'update dopo l'ultima operazione in senso temporale
 
 def aggiorna_pbl(Id):
 	"""Controllo le CIDR di PBL inserite via web e le attivo (PblUrl->Fucklog->MySQL)"""
