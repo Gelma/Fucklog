@@ -5,10 +5,10 @@ da netfilter, per un periodo di tempo variabile a seconda della loro insistenza.
 
 == Di che cosa ho bisogno per farlo funzionare ? ==
 Fucklog usa alcuni moduli python non standard quali:
-- MySQL-Python:		http://mysql-python.sourceforge.net/		(trovi il .deb)
-- dnspython:		http://www.dnspython.org/					(trovi il .deb)
+- MySQL-Python:		http://mysql-python.sourceforge.net/		(deb: python-mysqldb)
+- dnspython:		http://www.dnspython.org/					(deb: )
 - netaddr:			http://code.google.com/p/netaddr			(easy_install)
-- python-geoip:		https://code.google.com/p/python-geoip/		(easy_install)
+- python-geoip:		http://code.google.com/p/python-geoip/		(easy_install)
 
 Inoltre utilizza software esterni quali:
 - rsync:		per aggiornare le regole di UCEPROTECT

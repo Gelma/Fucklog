@@ -14,12 +14,24 @@ import urllib
 try:	
 	import dns.resolver
 	import dns.reversename
+except:
+	print """Manca il package dnspython (www.dnspython.org). Deb: python-dnspython"""
+	sys.exit(-1)
+try:
 	import MySQLdb
+except:
+	print """Manca il package MySQLdb (mysql-python.sourceforge.net). Deb: python-mysqldb"""
+	sys.exit(-1)
+try:
 	import netaddr
+except:
+	print """Manca il package netaddr (code.google.com/p/netaddr)."""
+	sys.exit(-1)
+try:
 	import pygeoip
 except:
-	print """Bada che necessiti di moduli non standard. Beccati il README."""
-	sys.exit()
+	print """Manca il package pygeoip (code.google.com/p/python-geoip)."""
+	sys.exit(-1)
 
 # definizione variabili globali
 mysql_host, mysql_user,\
