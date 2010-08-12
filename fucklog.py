@@ -338,11 +338,12 @@ def logit(*args):
 
 def nazione_dello_ip(IP):
 	"""Ricevo un IP, ne torno la nazione"""
-
-	global geoip_db
-
 	if geoip_db is False:
-		geoip_db = pygeoip.GeoIP(geoip_db_file)
+		global geoip_db
+		try:
+			geoip_db = pygeoip.GeoIP(geoip_db_file)
+		except:
+			return None
 	try:
 		return geoip_db.country_name_by_addr(IP)
 	except:
@@ -510,7 +511,7 @@ if __name__ == "__main__":
 		db.execute('delete from BLOCKED where END < CURRENT_TIMESTAMP()') # disintegro le regole scadute nel frattempo
 		db.execute('select IP from BLOCKED order by END') # e ripopolo
 		for IP in db.fetchall(): subprocess.call(shlex.split("/sbin/iptables -A 'fucklog' -s "+IP[0]+" --protocol tcp --dport 25 -j DROP"))
-		
+
 	if True: # controllo validita' del file di log
 		if os.path.isfile(postfix_log_file):
 			grep_command = "/bin/grep -E '(fully-qualified|blocked|lost connection|too many errors|Relay access denied)' " + postfix_log_file
