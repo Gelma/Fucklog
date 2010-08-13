@@ -269,12 +269,12 @@ def lettore(Id):
 		logit('Log: nuovo giro')
 		cronometro = time.time()
 		for log_line in subprocess.Popen(grep_command, shell=False, stdout=subprocess.PIPE).communicate()[0].split('\n'):
-			for REASON, regexp in enumerate(RegExps): # REASON=0 (rbl) 1 (helo) 2 (lost connection) 3 (too many errors) 4 (relay access)
+			for REASON, regexp in enumerate(RegExps): # REASON=0 (rbl) 1 (helo) 2 (lost connection) 3 (too many errors) 4 (relay access) 5 (timeout)
 				m = regexp.match(log_line) # applico le regexp
 				if m: # se combaciano
 					if REASON == 0 or REASON == 1 or REASON == 4:
 						IP, DNS, FROM, TO = m.group(2), m.group(1), m.group(3), m.group(4) # estrapolo i dati
-					else: # se quindi REASON è 2 oppure 3
+					else: # se quindi REASON è 2 oppure 3 oppure 5
 						IP, DNS, FROM, TO = m.group(2), m.group(1), None, None
 						if IP == 'unknown' or DNS != 'unknown': continue
 					if not gia_in_blocco(IP): # controllo che l'IP non sia gia' bloccato
@@ -492,12 +492,13 @@ if __name__ == "__main__":
 		lock_cidrarc			= thread.allocate_lock()
 		# RexExps
 		RegExps					= []
-		RegExpsReason			= ('rbl', 'helo', 'lost', 'many errors', 'norelay')
+		RegExpsReason			= ('rbl', 'helo', 'lost', 'many errors', 'norelay', 'timeout')
 		RegExps.append(re.compile('.*RCPT from (.*)\[(.*)\]:.*blocked using.*from=<(.*)> to=<(.*)> proto')) # RBL
 		RegExps.append(re.compile('.*NOQUEUE: reject: RCPT from (.*)\[(.*)\].*Helo command rejected: need fully-qualified hostname; from=<(.*)> to=<(.*)> proto')) # broken helo
 		RegExps.append(re.compile('.*\[postfix/smtpd\] lost connection after .* from (.*)\[(.*)\]')) # lost connection
 		RegExps.append(re.compile('.*\[postfix/smtpd\] too many errors after .* from (.*)\[(.*)\]')) # too many errors
 		RegExps.append(re.compile('.*RCPT from (.*)\[(.*)\].*Relay access denied.*from=<(.*)> to=<(.*)> proto')) # rely access denied
+		RegExps.append(re.compile('.*\[postfix/smtpd\] timeout after .* from (.*)\[(.*)\]')) # timeout
 
 	logit("Fucklog: start")
 	db = connetto_db()
@@ -514,7 +515,7 @@ if __name__ == "__main__":
 
 	if True: # controllo validita' del file di log
 		if os.path.isfile(postfix_log_file):
-			grep_command = "/bin/grep -E '(fully-qualified|blocked|lost connection|too many errors|Relay access denied)' " + postfix_log_file
+			grep_command = "/bin/grep -E '(fully-qualified|blocked|lost connection|too many errors|Relay access denied|timeout after)' " + postfix_log_file
 			grep_command = tuple(shlex.split(grep_command))
 		else:
 			logit("Main: postfix log file inutilizzabile", postfix_log_file)
