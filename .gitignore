@@ -1,3 +1,4 @@
 *.pyc
 *.swp
-fucklogrc
+*~
+fucklog.conf
