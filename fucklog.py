@@ -9,9 +9,9 @@ import re
 import shlex
 import subprocess
 import sys
-import thread
 import time
 import urllib
+from multiprocessing import Process, Lock
 
 try:	
 	import dns.resolver
@@ -38,11 +38,10 @@ except:
 def aggiorna_cidrarc():
 	"""Prendo il contenuto di Cidr->Fucklog->MySQL, riduco alle classi minime, e infilo il risultato in CidrArc->Fucklog-MySQL"""
 
-	if lock_cidrarc.locked():
+	if(lock_cidrarc.acquire(0) == False):
 		logit('AggCidrarc: aggiornamento già in esecuzione, tralascio.')
 		return
 
-	lock_cidrarc.acquire()
 	logit('AggCidrarc: inizio')
 	cronometro = time.time()
 	db = connetto_db()
@@ -488,8 +487,8 @@ if __name__ == "__main__":
 		contatore_pbl    = 0
 		pbl_email        = configurazione.get('Generali', 'pbl_email')
 		# Locks
-		lock_output_log_file	= thread.allocate_lock()
-		lock_cidrarc			= thread.allocate_lock()
+		lock_output_log_file = Lock()
+		lock_cidrarc = Lock()
 		# RexExps
 		RegExps					= []
 		RegExpsReason			= ('rbl', 'helo', 'lost', 'many errors', 'norelay', 'timeout')
@@ -522,20 +521,30 @@ if __name__ == "__main__":
 			print "Problema sul file di log", postfix_log_file
 			sys.exit(-1)
 
-	if True: # esecuzione dei thread
-		thread.start_new_thread(aggiorna_lasso, 		(1,))
-		thread.start_new_thread(aggiorna_pbl, 			(2,))
-		thread.start_new_thread(aggiorna_uce, 			(3,))
-		thread.start_new_thread(pbl_expire, 			(4,))
-		thread.start_new_thread(rimozione_ip_vecchi, 	(5,))
-		thread.start_new_thread(statistiche_mrtg, 		(6,))
-		thread.start_new_thread(scadenza_iptables, 		(7,))
-		thread.start_new_thread(lettore, 				(8,))
+	if True: # esecuzione dei processi
+		process_list = []
+		processes = [
+			aggiorna_lasso,
+			aggiorna_pbl,
+			aggiorna_uce,
+			pbl_expire,
+			rimozione_ip_vecchi,
+			statistiche_mrtg,
+			scadenza_iptables,
+			lettore
+		]
+		
+		for proc in processes:
+			p = Process(target=proc)
+			process_list.append(p)
+			p.start()
 
 	while True:
 		command = raw_input("What's up:")
 		if command == "q":
 			logit("Main: clean shutdown")
+			for proc in process_list:
+				proc.terminate()
 			file_mrtg_stats.close()
 			log_file.close()
 			sys.exit()
