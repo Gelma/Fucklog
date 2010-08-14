@@ -196,7 +196,7 @@ def aggiorna_pbl():
 def blocca_in_iptables(indirizzo_da_bloccare, bloccalo_per):
 	"""Ricevo IP e numero di giorni. Metto in IPTables e aggiorno Blocked->Fucklog->Mysql"""
 		
-	fino_al_timestamp = str(datetime.datetime.now() + datetime.timedelta(hours=12 * bloccalo_per)) # calcolo il timestamp di fine
+	fino_al_timestamp = str(datetime.datetime.now() + datetime.timedelta(hours=ore_di_blocco * bloccalo_per)) # calcolo il timestamp di fine
 	if subprocess.call(['/sbin/iptables', '-A', 'fucklog', '-s', indirizzo_da_bloccare, '--protocol', 'tcp', '--dport', '25', '-j', 'DROP'], shell=False):
 		logit('BloccaIpTables: errore IpTables', indirizzo_da_bloccare)
 	else:
@@ -477,6 +477,7 @@ if __name__ == "__main__":
 		lasso_minuti     = configurazione.get('Generali', 'aggiorna_lasso').split(":")
 		uce_ore, \
 		uce_minuti       = configurazione.get('Generali', 'aggiorna_uce').split(":")
+		ore_di_blocco    = configurazione.getint('Generali', 'ore_di_blocco')
 		#   GeoIP
 		geoip_db_file	 = configurazione.get('Generali', 'geoip_db_file')
 		geoip_db		 = False
