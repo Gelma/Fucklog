@@ -3,6 +3,7 @@
 
 import ConfigParser
 import datetime
+import multiprocessing
 import os
 import random
 import re
@@ -11,7 +12,6 @@ import subprocess
 import sys
 import time
 import urllib
-from multiprocessing import Process, Lock
 
 try:	
 	import dns.resolver
@@ -69,7 +69,7 @@ def aggiorna_cidrarc():
 	logit('AggCidrarc: completato in', time.time() - cronometro, 'secondi')
 	lock_cidrarc.release()
 
-def aggiorna_lasso(Id):
+def aggiorna_lasso():
 	"""Prelevo la lista Lasso e aggiorno Cidr->Fucklog->Mysql"""
 
 	while True:
@@ -101,7 +101,7 @@ def aggiorna_lasso(Id):
 
 		db.close()
 
-def aggiorna_uce(Id):
+def aggiorna_uce():
 	"""Aggiorno la lista UCE2 in Cidr->Fucklog->MySQL"""
 
 	# Per gli elenchi UCE 1 e 3 basta modificare la cifra nel comando seguente
@@ -137,7 +137,7 @@ def aggiorna_uce(Id):
 		db.close()
 		aggiorna_cidrarc() # temporaneamente, faccio l'update dopo l'ultima operazione in senso temporale
 
-def aggiorna_pbl(Id):
+def aggiorna_pbl():
 	"""Controllo le CIDR di PBL inserite via web e le attivo (PblUrl->Fucklog->MySQL)"""
 
 	while True:
@@ -259,7 +259,7 @@ def ip_in_pbl(IP):
 		for s in rr.strings:
 			return s
 
-def lettore(Id):
+def lettore():
 	"""Leggo regolarmente il log di Postfix, e smazzo gli IP che trovo"""
 
 	global db
@@ -348,7 +348,7 @@ def nazione_dello_ip(IP):
 	except:
 		return None
 
-def pbl_expire(Id):
+def pbl_expire():
 	"""Controllo tutte le CIDR PBL più vecchie di due mesi, ed eventualmente le sego (Cidr->Fucklog->MySQL)"""
 
 	dadi = random.SystemRandom()
@@ -379,7 +379,7 @@ def pbl_expire(Id):
 					db.execute("update CIDR set LASTUPDATE=CURRENT_TIMESTAMP where CIDR=%s", (CIDR,))
 				time.sleep(pausa_tra_le_query)
 
-def rimozione_ip_vecchi(Id):
+def rimozione_ip_vecchi():
 	"""Leggo Ip->Fucklog->MySQL e rimuovo gli IP che da più di 4 mesi non spammano"""
 
 	while True:
@@ -394,7 +394,7 @@ def rimozione_ip_vecchi(Id):
 			db.execute('delete from IP where DATE < (CURRENT_TIMESTAMP() - INTERVAL 4 MONTH)')
 		db.close()
 
-def scadenza_iptables(Id):
+def scadenza_iptables():
 	"""Rimuovo le regole di IpTables scadute"""
 
 	db = connetto_db()
@@ -410,7 +410,7 @@ def scadenza_iptables(Id):
 				db.execute('delete from BLOCKED where IP=%s', (IP[0],))
 				logit('DelIpTables: segato', IP[0])
 
-def statistiche_mrtg(Id):
+def statistiche_mrtg():
 	"""Aggiorno a cadenza fissa le statistiche per MRTG"""
 
 	db = connetto_db()
@@ -487,8 +487,8 @@ if __name__ == "__main__":
 		contatore_pbl    = 0
 		pbl_email        = configurazione.get('Generali', 'pbl_email')
 		# Locks
-		lock_output_log_file = Lock()
-		lock_cidrarc = Lock()
+		lock_output_log_file = multiprocessing.Lock()
+		lock_cidrarc         = multiprocessing.Lock()
 		# RexExps
 		RegExps					= []
 		RegExpsReason			= ('rbl', 'helo', 'lost', 'many errors', 'norelay', 'timeout')
@@ -521,9 +521,9 @@ if __name__ == "__main__":
 			print "Problema sul file di log", postfix_log_file
 			sys.exit(-1)
 
-	if True: # esecuzione dei processi
-		process_list = []
-		processes = [
+	if True: # partenza dei thread
+		elenco_thread = []
+		threads = [
 			aggiorna_lasso,
 			aggiorna_pbl,
 			aggiorna_uce,
@@ -534,17 +534,18 @@ if __name__ == "__main__":
 			lettore
 		]
 		
-		for proc in processes:
-			p = Process(target=proc)
-			process_list.append(p)
-			p.start()
+		for thread in threads:
+			tmp = multiprocessing.Process(target=thread)
+			elenco_thread.append(tmp)
+			tmp.start()
+		del tmp
 
 	while True:
 		command = raw_input("What's up:")
 		if command == "q":
 			logit("Main: clean shutdown")
-			for proc in process_list:
-				proc.terminate()
+			for thread in elenco_thread:
+				thread.terminate()
 			file_mrtg_stats.close()
 			log_file.close()
 			sys.exit()
@@ -555,4 +556,3 @@ if __name__ == "__main__":
 			print contatore_pbl
 		if command == "h":
 			print "Help:\n\tq: quit\n\ta: Aggiorna CidrArc\n\tp: Stampa numero di richieste PBL\n"
-
