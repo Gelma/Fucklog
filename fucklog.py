@@ -442,7 +442,8 @@ def verifica_manuale_pbl(IP):
 		pass
 	echo_command = shlex.split("echo 'http://mail.gelma.net/pbl_check.php'")
 	mail_command = shlex.split("mail -s 'cekka %s' %s" % (IP, pbl_email))
-	subprocess.Popen(mail_command, stdin=subprocess.Popen(echo_command, stdout=PIPE).stdout, stdout=PIPE).wait()
+	# da sistemare
+	#subprocess.Popen(mail_command, stdin=subprocess.Popen(echo_command, stdout=PIPE).stdout, stdout=PIPE).wait()
 	
 if __name__ == "__main__":
 	# Todo list:
