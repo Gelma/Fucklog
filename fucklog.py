@@ -1,19 +1,29 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import ConfigParser
-import datetime
-import multiprocessing
-import os
-import random
-import re
-import shlex
-import subprocess
-import sys
-import time
-import urllib
+try:
+	import ConfigParser
+	import datetime
+	import multiprocessing
+	import os
+	import random
+	import re
+	import shlex
+	import subprocess
+	import sys
+	import time
+	import urllib
+except:
+	import sys
+	print "Errore nell'import dei moduli standard. Versione troppo vecchia dell'interprete?"
+	sys.exit(-1)
 
-import pygeoip # Versione 0.1.3
+try:
+	import netaddr # Versione 0.7.4
+	import pygeoip # Versione 0.1.3
+except:
+	print "Errore nell'import dei moduli specifici di Fucklog."
+	sys.exit(-1)
 
 try:	
 	import dns.resolver
@@ -25,11 +35,6 @@ try:
 	import MySQLdb
 except:
 	print """Manca il package MySQLdb (mysql-python.sourceforge.net). Deb: python-mysqldb"""
-	sys.exit(-1)
-try:
-	import netaddr
-except:
-	print """Manca il package netaddr (code.google.com/p/netaddr)."""
 	sys.exit(-1)
 
 def aggiorna_cidrarc():
@@ -441,6 +446,7 @@ def verifica_manuale_pbl(IP):
 
 if __name__ == "__main__":
 	# Todo list:
+	# tailf
 	# rigenerazione sensata di CIDRARC (renderla più frequenta una volta resa sufficientemente veloce)
 	# passaggio di CIDRARC a merge esterno .c
 	# autopartenza di mrtg

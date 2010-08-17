@@ -7,7 +7,6 @@ da netfilter, per un periodo di tempo variabile a seconda della loro insistenza.
 Fucklog usa alcuni moduli python non standard quali:
 - MySQL-Python:		http://mysql-python.sourceforge.net/		(deb: python-mysqldb)
 - dnspython:		http://www.dnspython.org/					(deb: python-dnspython)
-- netaddr:			http://code.google.com/p/netaddr			(easy_install)
 
 Inoltre utilizza software esterni quali:
 - rsync:		per aggiornare le regole di UCEPROTECT
@@ -16,7 +15,7 @@ Inoltre utilizza software esterni quali:
 - mrtg:			per realizzare bellissimi grafici :)
 
 Per installare il tutto sotto Debian e derivate:
-apt-get install python-mysqldb python-netaddr python-dnspython python \
+apt-get install python-mysqldb python-dnspython python \
 		rsync mrtg iptables mysql-server
 
 Per far funzionare fucklog hai bisogno di un file di configurazione.
