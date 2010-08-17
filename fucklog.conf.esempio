@@ -9,11 +9,12 @@ mail_log   = /var/log/mail.log  ; file di log da monitorare
 intervallo = 5                  ; ogni quanti minuti leggere il file di log di Postfix
 
 [Generali]
-debug         = 0                          ; (0=False/1=True) Se True, scrive un mucchio di roba in più nel log
-log_file      = /tmp/.log_file_fucklog.txt ; Posizione del file di log di fucklog
-geoip_db_file = /opt/GeoIP/GeoLiteCity.dat ; Posizione del database di GeoIP
-mrtg_file     = /tmp/.fucklog_mrtg         ; Posizione del file per MRTG
-aggiorna_lasso= 4:44                       ; Ora dell'aggiornamento quotidiano di Lasso [hh:mm]
-aggiorna_uce  = 5:55                       ; Ora dell'aggiornamento quotidiano di UCE-2 [hh:mm]
-pbl_email     = example@example.com        ; Email a cui segnalare nuove PBL da controllare
-ore_di_blocco = 12                         ; Valore, espresso in ore, del tempo minimo di blocco iniziale di ogni IP.
+debug         = 0                                ; (0=False/1=True) Se True, scrive un mucchio di roba in più nel log
+log_file      = /tmp/.log_file_fucklog.txt       ; Posizione del file di log di fucklog
+geoip_db_file = /opt/GeoIP/GeoLiteCity.dat       ; Posizione del database di GeoIP
+mrtg_file     = /tmp/.fucklog_mrtg               ; Posizione del file per MRTG
+aggiorna_lasso= 4:44                             ; Ora dell'aggiornamento quotidiano di Lasso [hh:mm]
+aggiorna_uce  = 5:55                             ; Ora dell'aggiornamento quotidiano di UCE-2 [hh:mm]
+pbl_email     = example@example.com              ; Email a cui segnalare nuove PBL da controllare
+pbl_url       = http://example.com/pbl_check.php ; URL da utilizzare per l'inserimento manuale delle PBL
+ore_di_blocco = 12                               ; Valore, espresso in ore, del tempo minimo di blocco iniziale di ogni IP.

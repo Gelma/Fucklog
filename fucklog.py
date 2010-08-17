@@ -440,9 +440,8 @@ def verifica_manuale_pbl(IP):
 		db.execute("insert into PBLURL (URL) values (%s)", (IP,))
 	except:
 		pass
-	echo_command = shlex.split("echo 'http://mail.gelma.net/pbl_check.php'")
+	echo_command = shlex.split("echo '"+pbl_url+"'")
 	mail_command = shlex.split("mail -s 'cekka %s' %s" % (IP, pbl_email))
-	# da sistemare
 	subprocess.Popen(mail_command, stdin=subprocess.Popen(echo_command, stdout=subprocess.PIPE).stdout, stdout=subprocess.PIPE).wait()
 	
 if __name__ == "__main__":
@@ -452,7 +451,6 @@ if __name__ == "__main__":
 	# autopartenza di mrtg
 	# aggiornamento automatico geoip db (dovrebbe essere aggiornato una volta al mese)
 	# rivedere i costrutti condizionati (eccessivo uso di continue)
-	# parametrizzare URL di verifica_manuale_pbl
 	# abbandonare MySQL in favore di sqlite?
 	# incorporare le classi esterne per non dover obbligare a installare nulla manualmente?
 	
@@ -492,6 +490,7 @@ if __name__ == "__main__":
 		# PBL
 		contatore_pbl    = 0
 		pbl_email        = configurazione.get('Generali', 'pbl_email')
+		pbl_url          = configurazione.get('Generali', 'pbl_url')
 		# Locks
 		lock_output_log_file = multiprocessing.Lock()
 		lock_cidrarc         = multiprocessing.Lock()
@@ -506,7 +505,6 @@ if __name__ == "__main__":
 		RegExps.append(re.compile('.*\[postfix/smtpd\] too many errors after .* from (.*)\[(.*)\]')) # too many errors
 		RegExps.append(re.compile('.*RCPT from (.*)\[(.*)\].*Relay access denied.*from=<(.*)> to=<(.*)> proto')) # rely access denied
 		RegExps.append(re.compile('.*\[postfix/smtpd\] timeout after .* from (.*)\[(.*)\]')) # timeout
-
 
 	if True: # controllo istanze attive
 		if os.path.isfile(pidfile): # controllo istanze attive
