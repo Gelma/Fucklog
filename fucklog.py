@@ -447,11 +447,15 @@ def verifica_manuale_pbl(IP):
 	
 if __name__ == "__main__":
 	# Todo list:
-	# controllo per unica istanza in esecuzione
-	# rigenerazione sensata di CIDRARC (ora avviene una volta al giorno, forse varrebbe la pena individuare dei momenti opportuni)
+	# rigenerazione sensata di CIDRARC (renderla più frequenta una volta resa sufficientemente veloce)
+	# passaggio di CIDRARC a merge esterno .c
 	# autopartenza di mrtg
 	# aggiornamento automatico geoip db (dovrebbe essere aggiornato una volta al mese)
 	# rivedere i costrutti condizionati (eccessivo uso di continue)
+	# parametrizzare URL di verifica_manuale_pbl
+	# abbandonare MySQL in favore di sqlite?
+	# incorporare le classi esterne per non dover obbligare a installare nulla manualmente?
+	
 
 	if True: # lettura della configurazione e definizione delle variabili globali
 		configurazione = ConfigParser.ConfigParser()
@@ -491,6 +495,8 @@ if __name__ == "__main__":
 		# Locks
 		lock_output_log_file = multiprocessing.Lock()
 		lock_cidrarc         = multiprocessing.Lock()
+		# PIDfile
+		pidfile          = '/var/run/fucklog.pid'
 		# RexExps
 		RegExps					= []
 		RegExpsReason			= ('rbl', 'helo', 'lost', 'many errors', 'norelay', 'timeout')
@@ -501,7 +507,17 @@ if __name__ == "__main__":
 		RegExps.append(re.compile('.*RCPT from (.*)\[(.*)\].*Relay access denied.*from=<(.*)> to=<(.*)> proto')) # rely access denied
 		RegExps.append(re.compile('.*\[postfix/smtpd\] timeout after .* from (.*)\[(.*)\]')) # timeout
 
-	logit("Fucklog: start")
+
+	if True: # controllo istanze attive
+		if os.path.isfile(pidfile): # controllo istanze attive
+			if os.path.isdir( '/proc/' + str( file(pidfile,'r').read() )):
+				print "Main: probabile ci sia un'altra istanza gia' in esecuzione di Fucklog. Se così non fosse, elimina "+pidfile
+				sys.exit(-1)
+			else:
+				print "Mail: stale pidfile rimosso."
+		file(pidfile,'w').write(str(os.getpid()))	# controllare se resta il fd aperto
+
+	logit("Main: partenza di Fucklog")	
 	db = connetto_db()
 
 	if True: # ripristino delle regole di IpTables
