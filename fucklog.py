@@ -384,10 +384,8 @@ def rimozione_ip_vecchi():
 		dormi_fino_alle(1, 11)
 		logit('RimozioneIP: inizio')
 		db = connetto_db()
-		db.execute('select count(*) from IP where DATE < (CURRENT_TIMESTAMP() - INTERVAL 4 MONTH)')
-		if db.rowcount:
-			logit('RimozioneIP: rimossi', db.fetchone()[0], 'IP')
-			db.execute('delete from IP where DATE < (CURRENT_TIMESTAMP() - INTERVAL 4 MONTH)')
+		db.execute('delete from IP where DATE < (CURRENT_TIMESTAMP() - INTERVAL 4 MONTH)')
+		logit('RimozioneIP: rimossi', db.rowcount, 'IP')
 		db.close()
 
 def scadenza_iptables():
