@@ -440,10 +440,13 @@ def verifica_manuale_pbl(IP):
 		db.execute("insert into PBLURL (URL) values (%s)", (IP,))
 	except:
 		pass
-	echo_command = shlex.split("echo '"+pbl_url+"'")
-	mail_command = shlex.split("mail -s 'cekka %s' %s" % (IP, pbl_email))
-	subprocess.Popen(mail_command, stdin=subprocess.Popen(echo_command, stdout=subprocess.PIPE).stdout, stdout=subprocess.PIPE).wait()
-	
+	if os.path.exists('/usr/bin/mail'):
+		echo_command = shlex.split("echo '"+pbl_url+"'")
+		mail_command = shlex.split("mail -s 'cekka %s' %s" % (IP, pbl_email))
+		subprocess.Popen(mail_command, stdin=subprocess.Popen(echo_command, stdout=subprocess.PIPE).stdout, stdout=subprocess.PIPE).wait()
+	else:
+		logit('PBL: mancanza comando "mail"')
+
 if __name__ == "__main__":
 	# Todo list:
 	# rigenerazione sensata di CIDRARC (renderla più frequenta una volta resa sufficientemente veloce)
