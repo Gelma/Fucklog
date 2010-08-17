@@ -13,6 +13,8 @@ import sys
 import time
 import urllib
 
+import pygeoip # Versione 0.1.3
+
 try:	
 	import dns.resolver
 	import dns.reversename
@@ -28,11 +30,6 @@ try:
 	import netaddr
 except:
 	print """Manca il package netaddr (code.google.com/p/netaddr)."""
-	sys.exit(-1)
-try:
-	import pygeoip
-except:
-	print """Manca il package pygeoip (code.google.com/p/python-geoip)."""
 	sys.exit(-1)
 
 def aggiorna_cidrarc():
@@ -453,6 +450,7 @@ if __name__ == "__main__":
 	# passaggio di CIDRARC a merge esterno .c
 	# autopartenza di mrtg
 	# aggiornamento automatico geoip db (dovrebbe essere aggiornato una volta al mese)
+	# utilizzare una versione di geoip db locale?
 	# rivedere i costrutti condizionati (eccessivo uso di continue)
 	# abbandonare MySQL in favore di sqlite?
 	# incorporare le classi esterne per non dover obbligare a installare nulla manualmente?
