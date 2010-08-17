@@ -1,4 +1,5 @@
 """
+Version 0.1.3
 Constants needed for parsing binary GeoIP databases. It is part of the pygeoip
 package.
 
@@ -370,5 +371,3 @@ US_OFFSET = 1
 CANADA_OFFSET = 677
 WORLD_OFFSET = 1353
 FIPS_RANGE = 360
-
-
