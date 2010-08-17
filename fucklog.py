@@ -221,9 +221,7 @@ def gia_in_blocco(IP):
 
 	db = connetto_db()
 	db.execute('select IP from BLOCKED where IP=%s', (IP,))
-	tmp = db.fetchone()
-	if tmp:
-		if Debug: logit('ControlloIptables:', IP, 'risulta in IpTables ', tmp[0])
+	if db.rowcount:
 		return True
 	else:
 		return False
@@ -284,9 +282,10 @@ def lettore():
 								continue
 							else: # se non è gia' bloccato
 								db.execute('select COUNTER from CIDRARC where CIDR=%s', (CIDR_dello_IP,)) # ricavo fino a quando bloccarlo
-								tmp = db.fetchone()
-								if tmp: bloccalo_per = tmp[0] + 1
-								else: bloccalo_per = 1
+								if db.rowcount: # se è gia' noto
+									bloccalo_per = db.fetchone()[0] + 1 # incremento
+								else:
+									bloccalo_per = 1 # diversamente parto da 1
 								try: # aggiorno il contatore nel DB
 									db.execute("update CIDRARC set counter=%s where CIDR=%s", (bloccalo_per, CIDR_dello_IP))
 								except:
@@ -302,9 +301,10 @@ def lettore():
 								if Debug: logit('Log:', IP, 'risulta in PBL. Lo accodo per il web')
 								verifica_manuale_pbl(IP)
 							db.execute('select COUNTER from IP where IP=INET_ATON(%s)', (IP,)) # ricavo fino a quando bloccarlo
-							tmp = db.fetchone()
-							if tmp: bloccalo_per = tmp[0] + 1
-							else: bloccalo_per = 1
+							if db.rowcount:
+								bloccalo_per = db.fetchone()[0] + 1
+							else:
+								bloccalo_per = 1
 							try: # aggiorno contatore in MySQL (Ip->Fucklog->MySql)
 								db.execute("insert into IP (IP, DNS, FROOM, TOO, REASON, LINE, GEOIP) values (INET_ATON(%s), %s, %s, %s, %s, %s, %s)", (IP, DNS, FROM, TO, REASON, log_line, nazione_dello_ip(IP)))
 							except db.IntegrityError:
@@ -385,9 +385,8 @@ def rimozione_ip_vecchi():
 		logit('RimozioneIP: inizio')
 		db = connetto_db()
 		db.execute('select count(*) from IP where DATE < (CURRENT_TIMESTAMP() - INTERVAL 4 MONTH)')
-		tmp = db.fetchone()
-		if tmp[0] != 0: # ho IP da eliminare
-			logit('RimozioneIP: rimossi', tmp[0], 'IP')
+		if db.rowcount:
+			logit('RimozioneIP: rimossi', db.fetchone()[0], 'IP')
 			db.execute('delete from IP where DATE < (CURRENT_TIMESTAMP() - INTERVAL 4 MONTH)')
 		db.close()
 
@@ -414,12 +413,10 @@ def statistiche_mrtg():
 
 	while True:
 		db.execute("select count(*) from BLOCKED where CAST(BEGIN AS DATE)=CURDATE()") 
-		tmp = db.fetchone()
-		ip_di_oggi = str(tmp[0])
+		ip_di_oggi = str(db.fetchone()[0])
 
 		db.execute("select count(*) from BLOCKED")
-		tmp = db.fetchone()
-		ip_totali = str(tmp[0])
+		ip_totali = str(db.fetchone()[0])
 
 		file_mrtg_stats.seek(0)
 		file_mrtg_stats.truncate(0)
