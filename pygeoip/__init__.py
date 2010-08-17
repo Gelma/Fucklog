@@ -32,9 +32,10 @@ import os
 import math
 import socket
 import mmap
+import netaddr
 
 from const import *
-from util import ip2long
+
 
 class GeoIPError(Exception):
     pass
@@ -146,7 +147,7 @@ class GeoIP:
         @rtype: int
         """
         
-        ipnum = ip2long(addr)
+        ipnum = int(netaddr.IPAddress(addr))
         
         if not ipnum:
             raise ValueError("Invalid IP address: %s" % addr)
@@ -456,7 +457,7 @@ class GeoIP:
         @rtype: str
         """
         try:
-            ipnum = ip2long(addr)
+            ipnum = int(netaddr.IPAddress(addr))
             
             if not ipnum:
                 raise ValueError("Invalid IP address: %s" % addr)
@@ -496,7 +497,7 @@ class GeoIP:
         @rtype: dict
         """
         try:
-            ipnum = ip2long(addr)
+            ipnum = int(netaddr.IPAddress(addr))
             
             if not ipnum:
                 raise ValueError("Invalid IP address: %s" % addr)
@@ -536,7 +537,7 @@ class GeoIP:
         @rtype: dict
         """
         try:
-            ipnum = ip2long(addr)
+            ipnum = int(netaddr.IPAddress(addr))
             
             if not ipnum:
                 raise ValueError("Invalid IP address: %s" % addr)
