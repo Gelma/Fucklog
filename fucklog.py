@@ -101,8 +101,8 @@ def aggiorna_lasso():
 def aggiorna_uce():
 	"""Aggiorno la lista UCE2 in Cidr->Fucklog->MySQL"""
 
-	# Per gli elenchi UCE 1 e 3 basta modificare la cifra nel comando seguente
-	uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd --compress-level=9 rsync-mirrors.uceprotect.net::RBLDNSD-ALL/dnsbl-2.uceprotect.net /tmp/.dnsbl-2.uceprotect.net')
+	# Per i limiti giornalieri, e per l'utilizzo futuro, conviene scaricare tutto l'archivio
+	uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd --compress-level=9 rsync-mirrors.uceprotect.net::RBLDNSD-ALL/dnsbl-2.uceprotect.net /tmp/.fucklog/uce/')
 
 	while True:
 		dormi_fino_alle(uce_ore, uce_minuti)
@@ -115,7 +115,7 @@ def aggiorna_uce():
 		db = connetto_db()
 		db.execute("delete from CIDR where CATEGORY='uce'")
 
-		with open('/tmp/.dnsbl-2.uceprotect.net', 'r') as ucefile:
+		with open('/tmp/.fucklog/uce/dnsbl-2.uceprotect.net', 'r') as ucefile:
 			for line in ucefile:
 				if line.startswith('#') or line.startswith('$') or line.startswith('$') or line.startswith(':') or line.startswith('!') or line.startswith('127.0.0.2  Test Record'):
 					continue
@@ -457,6 +457,11 @@ if __name__ == "__main__":
 	# abbandonare MySQL in favore di sqlite?
 	# incorporare le classi esterne per non dover obbligare a installare nulla manualmente?
 	
+	if True: # controllo directory temporanee
+		if not os.path.isdir('/tmp/.fucklog'):
+			os.system('/bin/rm -fr /tmp/.fucklog')
+		if not os.path.isdir('/tmp/.fucklog/uce'):
+			os.system('/bin/mkdir -p /tmp/.fucklog/uce')
 
 	if True: # lettura della configurazione e definizione delle variabili globali
 		configurazione = ConfigParser.ConfigParser()
