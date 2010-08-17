@@ -566,6 +566,7 @@ if __name__ == "__main__":
 				thread.terminate()
 			file_mrtg_stats.close()
 			log_file.close()
+			os.remove(pidfile)
 			sys.exit()
 		if command == "a":
 			print "aggiornamento CidrArc"
