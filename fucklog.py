@@ -450,6 +450,8 @@ if __name__ == "__main__":
 	# passaggio di CIDRARC a merge esterno .c
 	# autopartenza di mrtg
 	# aggiornamento automatico geoip db (dovrebbe essere aggiornato una volta al mese)
+	# primo del mese:
+	# http://geolite.maxmind.com/download/geoip/database/GeoLiteCity.dat.gz
 	# utilizzare una versione di geoip db locale?
 	# rivedere i costrutti condizionati (eccessivo uso di continue)
 	# abbandonare MySQL in favore di sqlite?
