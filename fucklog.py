@@ -47,7 +47,7 @@ def aggiorna_cidrarc():
 	logit('AggCidrarc: inizio')
 	cronometro = time.time()
 	db = connetto_db()
-	db.execute('(select INET_NTOA(IP) from IP) UNION (SELECT CIDR from CIDR)') # Unisco e le CIDR e i singoli IP
+	db.execute('select INET_NTOA(IP) from IP UNION SELECT CIDR from CIDR') # Unisco e le CIDR e i singoli IP
 	lista_cidrs_nuovi = set([c[0] for c in db.fetchall()])
 	logit('AggCidrarc: totale CIDR iniziali', len(lista_cidrs_nuovi))
 	lista_cidrs_nuovi = set(netaddr.cidr_merge(lista_cidrs_nuovi))
