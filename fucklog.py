@@ -19,18 +19,14 @@ except:
 	sys.exit(-1)
 
 try:
-	import netaddr # Versione 0.7.4
-	import pygeoip # Versione 0.1.3
+	import netaddr          # Versione 0.7.4
+	import pygeoip          # Versione 0.1.3
+	import dns.resolver     # Versione 1.8.0 di DnsPython.org
+	import dns.reversename  # Versione 1.8.0 di DnsPython.org
 except:
 	print "Errore nell'import dei moduli specifici di Fucklog."
 	sys.exit(-1)
 
-try:	
-	import dns.resolver
-	import dns.reversename
-except:
-	print """Manca il package dnspython (www.dnspython.org). Deb: python-dnspython"""
-	sys.exit(-1)
 try:
 	import MySQLdb
 except:

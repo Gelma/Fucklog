@@ -4,9 +4,9 @@ Fucklog è uno script in Python che legge i log di postfix, al fine di scovare
 da netfilter, per un periodo di tempo variabile a seconda della loro insistenza. :)
 
 == Di che cosa ho bisogno per farlo funzionare ? ==
-Fucklog usa alcuni moduli python non standard quali:
+Fucklog usa alcuni moduli Python non standard portati comunque all'interno
+del programma, ne restano esclusi:
 - MySQL-Python:		http://mysql-python.sourceforge.net/		(deb: python-mysqldb)
-- dnspython:		http://www.dnspython.org/					(deb: python-dnspython)
 
 Inoltre utilizza software esterni quali:
 - rsync:		per aggiornare le regole di UCEPROTECT
@@ -15,12 +15,11 @@ Inoltre utilizza software esterni quali:
 - mrtg:			per realizzare bellissimi grafici :)
 
 Per installare il tutto sotto Debian e derivate:
-apt-get install python-mysqldb python-dnspython python \
-		rsync mrtg iptables mysql-server
+apt-get install python-mysqldb python rsync mrtg iptables mysql-server
 
-Per far funzionare fucklog hai bisogno di un file di configurazione.
-Trai principio e ispirazione da contrib/fucklog.conf.esempio,
+Per far funzionare fucklog hai bisogno di un file di configurazione,
 oltre che dello schema del DB (sempre in contrib).
+Trai principio e ispirazione da contrib/fucklog.conf.esempio.
 
 Se vuoi poter anche aggiornare le voci relative alla lista PBL, dovrai
 utilizzare/installare anche lo script PHP (pbl_check.php).
