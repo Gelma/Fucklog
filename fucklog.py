@@ -103,7 +103,7 @@ def aggiorna_uce():
 	"""Aggiorno la lista UCE2 in Cidr->Fucklog->MySQL"""
 
 	# Per i limiti giornalieri, e per l'utilizzo futuro, conviene scaricare tutto l'archivio
-	uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd --compress-level=9 rsync-mirrors.uceprotect.net::RBLDNSD-ALL/dnsbl-2.uceprotect.net /tmp/.fucklog/uce/')
+	uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd --compress-level=9 rsync-mirrors.uceprotect.net::RBLDNSD-ALL/ /tmp/.fucklog/uce/')
 
 	while True:
 		dormi_fino_alle(uce_ore, uce_minuti)
