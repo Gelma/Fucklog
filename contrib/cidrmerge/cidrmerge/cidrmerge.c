@@ -362,10 +362,10 @@ int get_entries(STREAM f,struct entry ** addr,unsigned int *size)
 			line_len=STRCPY(error+n,line);
 			n+=line_len;
 			n+=STRCPY(error+n,"\n");
-			if (line_len>0)
+			if (line_len>0)/*
 			{
 				WRITE(STDERR,error,n);
-			}
+			}*/
 		}
 		else
 		{
