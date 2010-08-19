@@ -141,27 +141,30 @@ def aggiorna_cidrarc():
 	logit('AggCidrarc: completato in', time.time() - cronometro, 'secondi')
 	lock_cidrarc.release()
 
-def aggiorna_uce():
+def aggiorna_blacklist():
 	"""Aggiorno le blacklist disponibili una volta al giorno"""
 
 	while True:
 		dormi_fino_alle(uce_ore, uce_minuti)
-		logit('UCE: aggiornamento', datetime.datetime.now())
 	
+		logit('UCE: aggiornamento UceProtect')
 		uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd --compress-level=9 rsync-mirrors.uceprotect.net::RBLDNSD-ALL/ '+uce_dir+'/')	
 		if subprocess.call(uce_rsync) != 0:
 			logit('UCE: errore con rsync1')
 
-		uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd  /usr/bin/rsync -avPz psbl-mirror.surriel.com::psbl/psbl.txt '+uce_dir+'/psbl.txt')	
+		logit('UCE: aggiornamento surriel')
+		uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd psbl-mirror.surriel.com::psbl/psbl.txt '+uce_dir+'/psbl.txt')	
 		if subprocess.call(uce_rsync) != 0:
 			logit('UCE: errore con rsync2')
 
+		logit('UCE: aggiornamento cbl')
 		uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd rsync://rsync.cbl.abuseat.org/cbl/list.txt '+uce_dir+'/cbl.abuseat.org')
 		if subprocess.call(uce_rsync) != 0:
 			logit('UCE: errore con rsync3')
 
 		logit('UCE: aggiornamento Lasso')
-		os.system("/usr/bin/wget -q 'http://www.spamhaus.org/drop/drop.lasso' -o "+uce_dir+'/drop.lasso')
+		os.remove(+uce_dir+'/drop.lasso')
+		os.system("/usr/bin/wget -q 'http://www.spamhaus.org/drop/drop.lasso' -O "+uce_dir+'/drop.lasso')
 		
 		aggiorna_cidrarc() # temporaneamente, faccio l'update dopo l'ultima operazione in senso temporale
 
@@ -466,6 +469,7 @@ def verifica_manuale_pbl(IP):
 
 if __name__ == "__main__":
 	# Todo list:
+	# Lasso e Uce vanno segati da CIDR-MySQL. A quel punto si può rinominare in PBL. Ocio ai riferimenti in php.
 	# tailf
 	# rigenerazione sensata di CIDRARC (renderla più frequenta una volta resa sufficientemente veloce)
 	# passaggio di CIDRARC a merge esterno .c
@@ -478,6 +482,7 @@ if __name__ == "__main__":
 	# abbandonare MySQL in favore di sqlite?
 	# aprire i file di log/mrtg solo in lettura per root
 	# iptables sistemare output nel ripristino delle regole. vedi commit: a28c1ff6578f78c0707eff6b68fb37ced8f5de86
+	# controlli esistenza wget/rsync
 
 	if True: # lettura della configurazione e definizione delle variabili globali
 		configurazione = ConfigParser.ConfigParser()
@@ -488,6 +493,9 @@ if __name__ == "__main__":
 		else:
 			print "Main: nessun file di configurazione valido"
 			sys.exit(-1)
+		# Locks
+		lock_output_log_file = multiprocessing.Lock()
+		lock_cidrarc         = multiprocessing.Lock()
 		# MySQL
 		mysql_host       = configurazione.get('MySQL', 'host', 1)
 		mysql_user       = configurazione.get('MySQL', 'user', 1)
@@ -529,9 +537,6 @@ if __name__ == "__main__":
 		contatore_pbl    = 0
 		pbl_email        = configurazione.get('Generali', 'pbl_email')
 		pbl_url          = configurazione.get('Generali', 'pbl_url')
-		# Locks
-		lock_output_log_file = multiprocessing.Lock()
-		lock_cidrarc         = multiprocessing.Lock()
 		# PIDfile
 		pidfile          = '/var/run/fucklog.pid'
 		# RexExps
@@ -581,7 +586,7 @@ if __name__ == "__main__":
 		elenco_thread = []
 		threads = [
 			aggiorna_pbl,
-			aggiorna_uce,
+			aggiorna_blacklist,
 			pbl_expire,
 			rimozione_ip_vecchi,
 			statistiche_mrtg,
