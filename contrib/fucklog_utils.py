@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+# Questo file ha, grosso modo perso, ogni sua utilita'. Viene lasciato in giro semplicemente perché sono ancora
+# da migrare alcune parti di codice.
+
 import netaddr, os, sys, socket, time, datetime, re, thread
 
 if True:
