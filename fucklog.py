@@ -61,39 +61,35 @@ def aggiorna_cidrarc():
 	for whitelist in [uce_dir+'ips.whitelisted.org','/etc/postfix/dnswl/postfix-dnswl-permit','/etc/postfix/whitelistip']:
 		if os.path.isfile(whitelist):
 			os.system('/bin/cat '+whitelist+' >> '+uce_dir+'tmp-whitelist')
-	
-	# preparo gli argomenti per il cat successivo
-	file_rbl = ''
+
+	file_rbl = '' # preparo gli argomenti per il cat successivo
 	for rbl in ['tmp-blacklist ','dnsbl-1.uceprotect.net ', 'dnsbl-2.uceprotect.net ', 'cbl.abuseat.org ', 'psbl.txt ']:
 		file_rbl = uce_dir+rbl+file_rbl
-
-	# la fase di intersezione degli elenchi IP deve essere rivista
-	# con gli operatori sui set
 	
-	lista_cidrs_nuovi = set()
+	lista_cidrs_nuovi = set() # preparo l'elenco dei nuovi IP
 	for line in os.popen('/bin/cat '+file_rbl+' | ./cidrmerge '+uce_dir+'tmp-whitelist'):
-		try:
-			tmp = netaddr.IPNetwork(line[:-1])
-		except:
-			logit('CidrArc: CIDR non valida in input', line[:-1])
-		if tmp.size != 1:
-			lista_cidrs_nuovi.add(tmp)
+		line = line[:-1]
+		if not line.endswith('/32'):
+			lista_cidrs_nuovi.add(line)
 	
-	os.remove(uce_dir+'tmp-whitelist')
+	os.remove(uce_dir+'tmp-whitelist') # elimino i file temporanei
 	os.remove(uce_dir+'tmp-blacklist')
 
-	db.execute('select CIDR from CIDRARC')
-	lista_cidrs_vecchi = set([netaddr.IPNetwork(c[0]) for c in db.fetchall()])
+	db.execute('select CIDR from CIDRARC') # preparo l'elenco dei vecchi IP (li prendo da CIDRARC->Fucklog->MySQL)
+	lista_cidrs_vecchi = set([c[0] for c in db.fetchall()])
 
-	for cidr in lista_cidrs_nuovi: # aggiungo i nuovi
-		if cidr not in lista_cidrs_vecchi:
-			logit('AggCidrarc: aggiungo', cidr)
-			db.execute('insert into CIDRARC (CIDR, IPSTART, IPEND, SIZE) values (%s, %s, %s, %s)', (cidr, int(cidr[0]), int(cidr[-1]), cidr.size))
+	for cidr in lista_cidrs_nuovi - lista_cidrs_vecchi: # aggiungo i nuovi
+		try:
+			cidr = netaddr.IPNetwork(cidr)
+		except:
+			logit('CidrArc: CIDR non valida in input',cidr)
+			continue
+		logit('AggCidrarc: aggiungo', cidr)
+		db.execute('insert into CIDRARC (CIDR, IPSTART, IPEND, SIZE) values (%s, %s, %s, %s)', (cidr, int(cidr[0]), int(cidr[-1]), cidr.size))
 
-	for cidr in lista_cidrs_vecchi: # cancello i vecchi
-		if cidr not in lista_cidrs_nuovi:
-			logit('AggCidrarc: rimuovo', cidr)
-			db.execute('delete from CIDRARC where CIDR=%s', (cidr,))
+	for cidr in lista_cidrs_vecchi - lista_cidrs_nuovi: # cancello i vecchi
+		logit('AggCidrarc: rimuovo', cidr)
+		db.execute('delete from CIDRARC where CIDR=%s', (cidr,))
 
 	db.close()
 	logit('AggCidrarc: completato in', time.time() - cronometro, 'secondi')
@@ -426,7 +422,6 @@ if __name__ == "__main__":
 	# A quel punto si può rinominare in PBL la tabella CIDR. Ocio ai riferimenti in php.
 	# tailf
 	# rigenerazione sensata di CIDRARC (renderla più frequenta una volta resa sufficientemente veloce)
-	# passaggio di CIDRARC a merge esterno .c (fatto, ma può essere migliorato)
 	# autopartenza di mrtg
 	# aggiornamento automatico geoip db (dovrebbe essere aggiornato una volta al mese)
 	#    primo del mese:
