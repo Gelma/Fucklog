@@ -19,7 +19,8 @@ apt-get install python-mysqldb python-dnspython python \
 		rsync mrtg iptables mysql-server
 
 Per far funzionare fucklog hai bisogno di un file di configurazione.
-Trai principio e ispirazione da fucklog.conf.esempio.
+Trai principio e ispirazione da contrib/fucklog.conf.esempio,
+oltre che dello schema del DB (sempre in contrib).
 
 Se vuoi poter anche aggiornare le voci relative alla lista PBL, dovrai
 utilizzare/installare anche lo script PHP (pbl_check.php).
