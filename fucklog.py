@@ -33,49 +33,45 @@ except:
 	print """Manca il package MySQLdb (mysql-python.sourceforge.net). Debian/Ubuntu: apt-get install python-mysqldb"""
 	sys.exit(-1)
 
-def nuovo_aggiorna_cidrarc():
-	"""Prendo gli IP noti che ho, insieme a un po' di blacklist, meno le whitelist e sbatto tutto in CidrArc->Fucklog-MySQL"""
+def aggiorna_cidrarc():
+	"""Prendo gli IP noti che ho, insieme a un po' di blacklist, meno le whitelist, e sbatto tutto in CidrArc->Fucklog-MySQL"""
 
 	if(lock_cidrarc.acquire(0) == False):
-		logit('AggCidrarc Nuovo: aggiornamento già in esecuzione, tralascio.')
+		logit('AggCidrarc: aggiornamento già in esecuzione, tralascio.')
 		return
 
-	print "Partito aggiornamento"
-	tmpfd=open(uce_dir+'tmp-blacklist','w')
-
-	logit('AggCidrarc Nuovo: inizio')
+	logit('AggCidrarc: inizio aggiornamento')
 	cronometro = time.time()
 	db = connetto_db()
-		
-	print "sparo i miei IP"
-	# prendo l'elenco dei miei IP + CIDR
+
+	# genero elenco miei IP e CIDR
+	tmpfd=open(uce_dir+'tmp-blacklist','w')
 	db.execute('select INET_NTOA(IP) from IP UNION SELECT CIDR from CIDR') # Unisco e le CIDR e i singoli IP
 	for line in db.fetchall():
 		tmpfd.write(line[0]+'\n')
 	tmpfd.close()
-	
-	print "sparo le blacklist"
-	# accodo blacklist UCE:
-	for blacklist in ['dnsbl-1.uceprotect.net', 'dnsbl-2.uceprotect.net', 'cbl.abuseat.org', 'psbl.txt']:
-		blacklist = uce_dir+blacklist
-		if os.path.isfile(blacklist):
-			os.system('/bin/cat '+blacklist+' >> '+uce_dir+'tmp-blacklist')
-			logit('AggCidrarc Nuovo: aggiunta blacklist',blacklist)
 
-	print "sparo le whitelist"
-	# prima mettiamo le classi private
+	# genero whitelist con classi private
 	tmpfd=open(uce_dir+'tmp-whitelist','w')
 	for private in ['10.0.0.0/8','127.0.0.0/8','172.16.0.0/12','192.168.0.0/16']:
 		tmpfd.write(private+'\n')
 	tmpfd.close()
 	
+	# raccatto le eventuali whitelist disponibili in giro
 	for whitelist in [uce_dir+'ips.whitelisted.org','/etc/postfix/dnswl/postfix-dnswl-permit','/etc/postfix/whitelistip']:
 		if os.path.isfile(whitelist):
 			os.system('/bin/cat '+whitelist+' >> '+uce_dir+'tmp-whitelist')
 	
-	print "eseguo il cidrmerge"
+	# preparo gli argomenti per il cat successivo
+	file_rbl = ''
+	for rbl in ['tmp-blacklist ','dnsbl-1.uceprotect.net ', 'dnsbl-2.uceprotect.net ', 'cbl.abuseat.org ', 'psbl.txt ']:
+		file_rbl = uce_dir+rbl+file_rbl
+
+	# la fase di intersezione degli elenchi IP deve essere rivista
+	# con gli operatori sui set
+	
 	lista_cidrs_nuovi = set()
-	for line in os.popen('./cidrmerge '+uce_dir+'tmp-whitelist'+' < '+uce_dir+'tmp-blacklist'):
+	for line in os.popen('/bin/cat '+file_rbl+' | ./cidrmerge '+uce_dir+'tmp-whitelist'):
 		try:
 			tmp = netaddr.IPNetwork(line[:-1])
 		except:
@@ -103,68 +99,27 @@ def nuovo_aggiorna_cidrarc():
 	logit('AggCidrarc: completato in', time.time() - cronometro, 'secondi')
 	lock_cidrarc.release()
 
-def aggiorna_cidrarc():
-	"""Prendo il contenuto di Cidr->Fucklog->MySQL, riduco alle classi minime, e infilo il risultato in CidrArc->Fucklog-MySQL"""
-
-	if os.path.isfile('./cidrmerge'): # se ho disponibile l'eseguibile cidrmerge
-		nuovo_aggiorna_cidrarc() # eseguo la nuova funzione
-		return
-	
-	if(lock_cidrarc.acquire(0) == False):
-		logit('AggCidrarc: aggiornamento già in esecuzione, tralascio.')
-		return
-
-	logit('AggCidrarc: inizio')
-	cronometro = time.time()
-	db = connetto_db()
-	db.execute('select INET_NTOA(IP) from IP UNION SELECT CIDR from CIDR') # Unisco e le CIDR e i singoli IP
-	lista_cidrs_nuovi = set([c[0] for c in db.fetchall()])
-	logit('AggCidrarc: totale CIDR iniziali', len(lista_cidrs_nuovi))
-	lista_cidrs_nuovi = set(netaddr.cidr_merge(lista_cidrs_nuovi))
-	logit('AggCidrarc: totale CIDR finali', len(lista_cidrs_nuovi))
-	db.execute('select CIDR from CIDRARC')
-	lista_cidrs_vecchi = set([netaddr.IPNetwork(c[0]) for c in db.fetchall()])
-
-	for cidr in lista_cidrs_nuovi: # aggiungo i nuovi
-		if cidr not in lista_cidrs_vecchi:
-			cidr = netaddr.IPNetwork(cidr)
-			if cidr.size != 1: # non voglio le classi /32
-				logit('AggCidrarc: aggiungo', cidr)
-				db.execute('insert into CIDRARC (CIDR, IPSTART, IPEND, SIZE) values (%s, %s, %s, %s)', (cidr, int(cidr[0]), int(cidr[-1]), cidr.size))
-
-	for cidr in lista_cidrs_vecchi: # cancello i vecchi
-		if cidr not in lista_cidrs_nuovi:
-			logit('AggCidrarc: rimuovo', cidr)
-			db.execute('delete from CIDRARC where CIDR=%s', (cidr,))
-
-	db.close()
-	logit('AggCidrarc: completato in', time.time() - cronometro, 'secondi')
-	lock_cidrarc.release()
-
 def aggiorna_blacklist():
 	"""Aggiorno le blacklist disponibili una volta al giorno"""
 
 	while True:
 		dormi_fino_alle(uce_ore, uce_minuti)
-	
-		logit('UCE: aggiornamento UceProtect')
+		logit('UCE: inizio aggiornamento')
 		uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd --compress-level=9 rsync-mirrors.uceprotect.net::RBLDNSD-ALL/ '+uce_dir)	
 		if subprocess.call(uce_rsync) != 0:
-			logit('UCE: errore con rsync1')
+			logit('UCE: errore rsync UceProtect.net')
 
-		logit('UCE: aggiornamento surriel')
 		uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd psbl-mirror.surriel.com::psbl/psbl.txt '+uce_dir+'psbl.txt')
 		if subprocess.call(uce_rsync) != 0:
-			logit('UCE: errore con rsync2')
+			logit('UCE: errore rsync surriel.com')
 
-		logit('UCE: aggiornamento cbl')
 		uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd rsync://rsync.cbl.abuseat.org/cbl/list.txt '+uce_dir+'cbl.abuseat.org')
 		if subprocess.call(uce_rsync) != 0:
-			logit('UCE: errore con rsync3')
+			logit('UCE: errore rsync abuseat.org')
 
-		logit('UCE: aggiornamento Lasso')
 		os.remove(+uce_dir+'/drop.lasso')
-		os.system("/usr/bin/wget -q 'http://www.spamhaus.org/drop/drop.lasso' -O "+uce_dir+'drop.lasso')
+		if not os.system("/usr/bin/wget -q 'http://www.spamhaus.org/drop/drop.lasso' -O "+uce_dir+'drop.lasso'):
+			logit('Uce: errore wget lasso')
 		
 		aggiorna_cidrarc() # invoco l'aggiornamento delle liste
 
