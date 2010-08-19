@@ -521,6 +521,7 @@ if __name__ == "__main__":
 	# rivedere i costrutti condizionati (eccessivo uso di continue)
 	# abbandonare MySQL in favore di sqlite?
 	# aprire i file di log/mrtg solo in lettura per root
+	# iptables sistemare output nel ripristino delle regole. vedi commit: a28c1ff6578f78c0707eff6b68fb37ced8f5de86
 
 	if True: # lettura della configurazione e definizione delle variabili globali
 		configurazione = ConfigParser.ConfigParser()
