@@ -153,9 +153,9 @@ static int parse_line(char* line,struct entry *res)
 
 				stop=1;
 				break;
-			case ' ':
+			/*case ' ':*/
 				/*no break here*/
-				fprintf(stderr,"WARNING: not considering characters after space in line %s",line);
+				/*fprintf(stderr,"WARNING: not considering characters after space in line %s",line);*/
 			case '*':
 				if ((line[end]=='*') && (line[end+1] != '\0'))
 				{
@@ -361,8 +361,8 @@ int get_entries(STREAM f,struct entry ** addr,unsigned int *size)
 			n=STRCPY(error,"Invalid line ");
 			line_len=STRCPY(error+n,line);
 			n+=line_len;
-			n+=STRCPY(error+n,"\n");
-			if (line_len>0)/*
+			n+=STRCPY(error+n,"\n");/*
+			if (line_len>0)
 			{
 				WRITE(STDERR,error,n);
 			}*/
