@@ -33,6 +33,75 @@ except:
 	print """Manca il package MySQLdb (mysql-python.sourceforge.net). Deb: python-mysqldb"""
 	sys.exit(-1)
 
+def nuovo_aggiorna_cidrarc():
+	"""Prendo gli IP noti che ho, insieme a un po' di blacklist, meno le whitelist e sbatto tutto in CidrArc->Fucklog-MySQL"""
+
+	if(lock_cidrarc.acquire(0) == False):
+		logit('AggCidrarc Nuovo: aggiornamento già in esecuzione, tralascio.')
+		return
+
+	print "Partito aggiornamento"
+	# definisco i file di appoggio e le variabili
+	tmpfd=open('/tmp/.fucklog/tmp-blacklist','w')
+	totale_input = 0
+	
+	logit('AggCidrarc Nuovo: inizio')
+	cronometro = time.time()
+	db = connetto_db()
+	
+	# elenco mie whitelist +
+	# elenco rsync whitelist
+	
+	print "sparo i miei IP"
+	# prendo l'elenco dei miei IP + CIDR
+	db.execute('select INET_NTOA(IP) from IP UNION SELECT CIDR from CIDR') # Unisco e le CIDR e i singoli IP
+	totale_input += db.rowcount
+	for line in db.fetchall():
+		tmpfd.write(line[0]+'\n')
+	tmpfd.close()
+	logit('AggCidrarc Nuovo: IP+CIDR Mysql',totale_input)
+	
+	print "sparo le blacklist"
+	# accodo blacklist UCE:
+	for blacklist in ['dnsbl-1.uceprotect.net', 'dnsbl-2.uceprotect.net', 'cbl.abuseat.org', 'psbl.txt']:
+		if os.path.isfile('/tmp/.fucklog/uce/'+blacklist):
+			os.system('/bin/cat /tmp/.fucklog/uce/'+blacklist+' >> /tmp/.fucklog/tmp-blacklist')
+			logit('AggCidrarc Nuovo: aggiunta blacklist',blacklist)
+
+	print "sparo le whitelist"
+	# prima mettiamo le classi private
+	tmpfd=open('/tmp/.fucklog/tmp-whitelist','w')
+	for private in ['10.0.0.0/8','127.0.0.0/8','172.16.0.0/12','192.168.0.0/16']:
+		tmpfd.write(private+'\n')
+	tmpfd.close()
+	
+	for whitelist in ['/tmp/.fucklog/uce/ips.whitelisted.org','/etc/postfix/dnswl/postfix-dnswl-permit','/etc/postfix/whitelistip']:
+		if os.path.isfile(whitelist):
+			os.system('/bin/cat '+whitelist+' >> /tmp/.fucklog/tmp-whitelist')
+	return
+
+	lista_cidrs_nuovi = set([c[0] for c in db.fetchall()])
+	logit('AggCidrarc: totale CIDR iniziali', len(lista_cidrs_nuovi))
+	lista_cidrs_nuovi = set(netaddr.cidr_merge(lista_cidrs_nuovi))
+	logit('AggCidrarc: totale CIDR finali', len(lista_cidrs_nuovi))
+	db.execute('select CIDR from CIDRARC')
+	lista_cidrs_vecchi = set([netaddr.IPNetwork(c[0]) for c in db.fetchall()])
+
+	for cidr in lista_cidrs_nuovi: # aggiungo i nuovi
+		if cidr not in lista_cidrs_vecchi:
+			cidr = netaddr.IPNetwork(cidr)
+			if cidr.size != 1: # non voglio le classi /32
+				logit('AggCidrarc: aggiungo', cidr)
+				db.execute('insert into CIDRARC (CIDR, IPSTART, IPEND, SIZE) values (%s, %s, %s, %s)', (cidr, int(cidr[0]), int(cidr[-1]), cidr.size))
+
+	for cidr in lista_cidrs_vecchi: # cancello i vecchi
+		if cidr not in lista_cidrs_nuovi:
+			logit('AggCidrarc: rimuovo', cidr)
+			db.execute('delete from CIDRARC where CIDR=%s', (cidr,))
+
+	db.close()
+	logit('AggCidrarc: completato in', time.time() - cronometro, 'secondi')
+	lock_cidrarc.release()
 
 def aggiorna_cidrarc():
 	"""Prendo il contenuto di Cidr->Fucklog->MySQL, riduco alle classi minime, e infilo il risultato in CidrArc->Fucklog-MySQL"""
@@ -451,6 +520,7 @@ if __name__ == "__main__":
 	#    utilizzare una versione di geoip db locale?
 	# rivedere i costrutti condizionati (eccessivo uso di continue)
 	# abbandonare MySQL in favore di sqlite?
+	# aprire i file di log/mrtg solo in lettura per root
 
 	if True: # lettura della configurazione e definizione delle variabili globali
 		configurazione = ConfigParser.ConfigParser()
@@ -472,12 +542,24 @@ if __name__ == "__main__":
 		# Generali
 		Debug			 = configurazione.getint('Generali', 'debug')
 		output_log_file	 = configurazione.get('Generali', 'log_file')
-		log_file		 = open(output_log_file, 'a')
+		try:
+			log_file		 = open(output_log_file, 'a')
+		except:
+			print "Main: non posso creare il file di log: ",log_file
+			sys.exit(-1)
 		lasso_ore, \
 		lasso_minuti     = configurazione.get('Generali', 'aggiorna_lasso').split(":")
 		uce_ore, \
 		uce_minuti       = configurazione.get('Generali', 'aggiorna_uce').split(":")
 		uce_dir          = configurazione.get('Generali', 'uce_dir')
+		if not os.path.exists(uce_dir): # se non esiste la directory per rbl
+			os.mkdir(uce_dir)
+			print "Main: è stata creata la directory", uce_dir
+			logit("Main: è stata creata la directory", uce_dir)
+		else:
+			if not os.path.isdir(uce_dir): # se non si tratta di una directory
+				print "Main: ",uce_dir,"non è una directory. Non posso utilizzarla."
+				sys.exit(-1)
 		ore_di_blocco    = configurazione.getint('Generali', 'ore_di_blocco')
 		#   GeoIP
 		geoip_db_file	 = configurazione.get('Generali', 'geoip_db_file')
@@ -506,12 +588,6 @@ if __name__ == "__main__":
 		RegExps.append(re.compile('.*\[postfix/smtpd\] too many errors after .* from (.*)\[(.*)\]')) # too many errors
 		RegExps.append(re.compile('.*RCPT from (.*)\[(.*)\].*Relay access denied.*from=<(.*)> to=<(.*)> proto')) # rely access denied
 		RegExps.append(re.compile('.*\[postfix/smtpd\] timeout after .* from (.*)\[(.*)\]')) # timeout
-
-	if True: # controllo directory temporanee
-		if not os.path.isdir('/tmp/.fucklog'):
-			os.system('/bin/rm -fr /tmp/.fucklog')
-		if not os.path.isdir('/tmp/.fucklog/uce'):
-			os.system('/bin/mkdir -p /tmp/.fucklog/uce')
 
 	if True: # controllo istanze attive
 		if os.path.isfile(pidfile): # controllo istanze attive
