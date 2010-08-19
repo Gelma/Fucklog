@@ -141,72 +141,28 @@ def aggiorna_cidrarc():
 	logit('AggCidrarc: completato in', time.time() - cronometro, 'secondi')
 	lock_cidrarc.release()
 
-def aggiorna_lasso():
-	"""Prelevo la lista Lasso e aggiorno Cidr->Fucklog->Mysql"""
-
-	while True:
-		dormi_fino_alle(lasso_ore, lasso_minuti)
-		logit('Lasso: aggiornamento', datetime.datetime.now())
-		try:
-			lassofile = urllib.urlopen("http://www.spamhaus.org/drop/drop.lasso")
-		except:
-			logit("Lasso: aggiornamento fallito")
-			continue
-
-		db = connetto_db()
-		db.execute("delete from CIDR where CATEGORY='lasso'")
-
-		for line in lassofile:
-			if line.startswith(';'):
-				continue
-			cidr, note = line[:-1].split(';')
-			try:
-				cidr = netaddr.IPNetwork(cidr)
-			except:
-				logit('Lasso: errore con', cidr)
-				continue
-			try:
-				db.execute("insert into CIDR (CIDR, SIZE, NAME, CATEGORY) values (%s,%s,%s,'lasso')", (cidr, cidr.size, note.strip()))
-			except:
-				logit('Lasso: errore db con', cidr)
-		del lassofile
-
-		db.close()
-
 def aggiorna_uce():
-	"""Aggiorno la lista UCE2 in Cidr->Fucklog->MySQL"""
-
-	# Per i limiti giornalieri, e per l'utilizzo futuro, conviene scaricare tutto l'archivio
-	uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd --compress-level=9 rsync-mirrors.uceprotect.net::RBLDNSD-ALL/ /tmp/.fucklog/uce/')
+	"""Aggiorno le blacklist disponibili una volta al giorno"""
 
 	while True:
 		dormi_fino_alle(uce_ore, uce_minuti)
 		logit('UCE: aggiornamento', datetime.datetime.now())
 	
+		uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd --compress-level=9 rsync-mirrors.uceprotect.net::RBLDNSD-ALL/ '+uce_dir+'/')	
 		if subprocess.call(uce_rsync) != 0:
-			logit('UCE: errore con rsync')
-			continue
+			logit('UCE: errore con rsync1')
 
-		db = connetto_db()
-		db.execute("delete from CIDR where CATEGORY='uce'")
+		uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd  /usr/bin/rsync -avPz psbl-mirror.surriel.com::psbl/psbl.txt '+uce_dir+'/psbl.txt')	
+		if subprocess.call(uce_rsync) != 0:
+			logit('UCE: errore con rsync2')
 
-		with open('/tmp/.fucklog/uce/dnsbl-2.uceprotect.net', 'r') as ucefile:
-			for line in ucefile:
-				if line.startswith('#') or line.startswith('$') or line.startswith('$') or line.startswith(':') or line.startswith('!') or line.startswith('127.0.0.2  Test Record'):
-					continue
-				note = line.split('because')[1].split('are hosted')[0].strip()
-				cidr = line.split()[0]
-				try:
-					cidr = netaddr.IPNetwork(cidr)
-				except:
-					logit('UCE: CIDR formalmente sbagliata', cidr)
-					continue
-				try:
-					db.execute("insert into CIDR(CIDR, NAME, SIZE, CATEGORY) values (%s,%s,%s,'uce')", (cidr, note, cidr.size))
-				except:
-					pass # CIDR gia' presente nel DB
+		uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd rsync://rsync.cbl.abuseat.org/cbl/list.txt '+uce_dir+'/cbl.abuseat.org')
+		if subprocess.call(uce_rsync) != 0:
+			logit('UCE: errore con rsync3')
 
-		db.close()
+		logit('UCE: aggiornamento Lasso')
+		os.system("/usr/bin/wget -q 'http://www.spamhaus.org/drop/drop.lasso' -o "+uce_dir+'/drop.lasso')
+		
 		aggiorna_cidrarc() # temporaneamente, faccio l'update dopo l'ultima operazione in senso temporale
 
 def aggiorna_pbl():
@@ -548,8 +504,6 @@ if __name__ == "__main__":
 		except:
 			print "Main: non posso creare il file di log: ",log_file
 			sys.exit(-1)
-		lasso_ore, \
-		lasso_minuti     = configurazione.get('Generali', 'aggiorna_lasso').split(":")
 		uce_ore, \
 		uce_minuti       = configurazione.get('Generali', 'aggiorna_uce').split(":")
 		uce_dir          = configurazione.get('Generali', 'uce_dir')
@@ -626,7 +580,6 @@ if __name__ == "__main__":
 	if True: # partenza dei thread
 		elenco_thread = []
 		threads = [
-			aggiorna_lasso,
 			aggiorna_pbl,
 			aggiorna_uce,
 			pbl_expire,

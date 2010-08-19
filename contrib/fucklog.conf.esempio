@@ -13,8 +13,6 @@ debug         = 0                                ; (0=False/1=True) Se True, scr
 log_file      = /tmp/fucklog.log                 ; Posizione del file di log di fucklog
 geoip_db_file = /opt/GeoIP/GeoLiteCity.dat       ; Posizione del database di GeoIP
 mrtg_file     = /tmp/fucklog_mrtg                ; Posizione del file per MRTG
-aggiorna_lasso= 4:44                             ; Ora dell'aggiornamento quotidiano di Lasso [hh:mm]
-aggiorna_uce  = 5:55                             ; Ora dell'aggiornamento quotidiano di UCE-2 [hh:mm]
 pbl_email     = example@example.com              ; Email a cui segnalare nuove PBL da controllare
 pbl_url       = http://example.com/pbl_check.php ; URL da utilizzare per l'inserimento manuale delle PBL
 uce_dir       = /var/spool/fucklog_blacklist     ; Directory per le blacklist scaricate via Internet. Attenzione! Lo spazio richiesto è di diverse centinaia di megabyte
