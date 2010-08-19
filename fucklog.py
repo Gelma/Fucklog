@@ -200,7 +200,7 @@ def aggiorna_pbl():
 				continue
 
 			try: # tutto ok, quindi inserisco
-				db.execute("insert into CIDR (CIDR, SIZE, CATEGORY) values (%s,%s,'pbl')", (CIDR, CIDR.size))
+				db.execute("insert into CIDR (CIDR, CATEGORY) values (%s,'pbl')", (CIDR,))
 			except:
 				logit("WebPBL: fallito inserimento", CIDR)
 			db.execute("delete from PBLURL where URL=%s", (IP,))
@@ -465,7 +465,10 @@ def verifica_manuale_pbl(IP):
 
 if __name__ == "__main__":
 	# Todo list:
-	# Lasso e Uce vanno segati da CIDR-MySQL. A quel punto si può rinominare in PBL. Ocio ai riferimenti in php.
+	# Lasso e Uce vanno segati da CIDR-MySQL
+	#   Dello stesso si può segare la colonna NAME (CIDR)
+	#   Anche la SIZE
+	#   A quel punto si può rinominare in PBL. Ocio ai riferimenti in php.
 	# tailf
 	# rigenerazione sensata di CIDRARC (renderla più frequenta una volta resa sufficientemente veloce)
 	# passaggio di CIDRARC a merge esterno .c
