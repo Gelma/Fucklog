@@ -117,7 +117,7 @@ def aggiorna_blacklist():
 		if subprocess.call(uce_rsync) != 0:
 			logit('UCE: errore rsync abuseat.org')
 
-		os.remove(+uce_dir+'/drop.lasso')
+		os.remove(uce_dir+'/drop.lasso')
 		if not os.system("/usr/bin/wget -q 'http://www.spamhaus.org/drop/drop.lasso' -O "+uce_dir+'drop.lasso'):
 			logit('Uce: errore wget lasso')
 		
@@ -363,8 +363,7 @@ def rimozione_ip_vecchi():
 	"""Leggo Ip->Fucklog->MySQL e rimuovo gli IP che da più di 4 mesi non spammano"""
 
 	while True:
-		#time.sleep(28800) # A fine anno riabilito questo
-		dormi_fino_alle(1, 11)
+		time.sleep(14400)
 		logit('RimozioneIP: inizio')
 		db = connetto_db()
 		db.execute('delete from IP where DATE < (CURRENT_TIMESTAMP() - INTERVAL 4 MONTH)')
@@ -424,10 +423,7 @@ def verifica_manuale_pbl(IP):
 
 if __name__ == "__main__":
 	# Todo list:
-	# Lasso e Uce vanno segati da CIDR-MySQL
-	#   Dello stesso si può segare la colonna NAME (CIDR)
-	#   Anche la SIZE
-	#   A quel punto si può rinominare in PBL. Ocio ai riferimenti in php.
+	# A quel punto si può rinominare in PBL la tabella CIDR. Ocio ai riferimenti in php.
 	# tailf
 	# rigenerazione sensata di CIDRARC (renderla più frequenta una volta resa sufficientemente veloce)
 	# passaggio di CIDRARC a merge esterno .c (fatto, ma può essere migliorato)
