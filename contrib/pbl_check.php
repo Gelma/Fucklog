@@ -57,15 +57,6 @@ function countdown(){
 	}
 }
 
-function totali(){
-	$data = sql("select COUNT(*) AS tot from CIDR");
-	while ($row = mysql_fetch_assoc($data))
-		$risposta = $row['tot'].' / ';
-	$data = sql("select SUM(SIZE) AS tot from CIDR");
-	while ($row = mysql_fetch_assoc($data))
-	return $risposta.number_format($row['tot'], 3, '.', '.');
-}
-
 function mostra_box(){
 	$data = sql("select URL from PBLURL where CIDR is null order by RAND() LIMIT 1");
 	print '<FORM ACTION="'.$_SERVER["PHP_SELF"].'" METHOD="POST">';
@@ -76,7 +67,6 @@ function mostra_box(){
 		print '<input type="hidden" name="ip" value="'.$row["URL"].'"></td></tr>';
 		print '<tr><td align="center"><INPUT TYPE="SUBMIT" NAME="Invia" VALUE="Invia"></td></tr>';
 		print '<tr><td align="center">'; echo countdown(); print '</td></tr>';
-		print '<tr><td align="center">'; echo totali(); print '</td></tr>';
 	}
 	print '</FORM></table>';
 }
