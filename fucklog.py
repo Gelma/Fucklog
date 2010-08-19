@@ -50,7 +50,6 @@ def nuovo_aggiorna_cidrarc():
 	print "sparo i miei IP"
 	# prendo l'elenco dei miei IP + CIDR
 	db.execute('select INET_NTOA(IP) from IP UNION SELECT CIDR from CIDR') # Unisco e le CIDR e i singoli IP
-	totale_input += db.rowcount
 	for line in db.fetchall():
 		tmpfd.write(line[0]+'\n')
 	tmpfd.close()
@@ -73,22 +72,27 @@ def nuovo_aggiorna_cidrarc():
 	for whitelist in [uce_dir+'ips.whitelisted.org','/etc/postfix/dnswl/postfix-dnswl-permit','/etc/postfix/whitelistip']:
 		if os.path.isfile(whitelist):
 			os.system('/bin/cat '+whitelist+' >> '+uce_dir+'tmp-whitelist')
-	return
+	
+	print "eseguo il cidrmerge"
+	lista_cidrs_nuovi = set()
+	for line in os.popen('./cidrmerge '+uce_dir+'tmp-whitelist'+' < '+uce_dir+'tmp-blacklist'):
+		try:
+			tmp = netaddr.IPNetwork(line[:-1])
+		except:
+			logit('CidrArc: CIDR non valida in input', line[:-1])
+		if tmp.size != 1:
+			lista_cidrs_nuovi.add(tmp)
+	
+	os.remove(uce_dir+'tmp-whitelist')
+	os.remove(uce_dir+'tmp-blacklist')
 
-
-	lista_cidrs_nuovi = set([c[0] for c in db.fetchall()])
-	logit('AggCidrarc: totale CIDR iniziali', len(lista_cidrs_nuovi))
-	lista_cidrs_nuovi = set(netaddr.cidr_merge(lista_cidrs_nuovi))
-	logit('AggCidrarc: totale CIDR finali', len(lista_cidrs_nuovi))
 	db.execute('select CIDR from CIDRARC')
 	lista_cidrs_vecchi = set([netaddr.IPNetwork(c[0]) for c in db.fetchall()])
 
 	for cidr in lista_cidrs_nuovi: # aggiungo i nuovi
 		if cidr not in lista_cidrs_vecchi:
-			cidr = netaddr.IPNetwork(cidr)
-			if cidr.size != 1: # non voglio le classi /32
-				logit('AggCidrarc: aggiungo', cidr)
-				db.execute('insert into CIDRARC (CIDR, IPSTART, IPEND, SIZE) values (%s, %s, %s, %s)', (cidr, int(cidr[0]), int(cidr[-1]), cidr.size))
+			logit('AggCidrarc: aggiungo', cidr)
+			db.execute('insert into CIDRARC (CIDR, IPSTART, IPEND, SIZE) values (%s, %s, %s, %s)', (cidr, int(cidr[0]), int(cidr[-1]), cidr.size))
 
 	for cidr in lista_cidrs_vecchi: # cancello i vecchi
 		if cidr not in lista_cidrs_nuovi:
@@ -471,13 +475,12 @@ if __name__ == "__main__":
 	#   A quel punto si può rinominare in PBL. Ocio ai riferimenti in php.
 	# tailf
 	# rigenerazione sensata di CIDRARC (renderla più frequenta una volta resa sufficientemente veloce)
-	# passaggio di CIDRARC a merge esterno .c
+	# passaggio di CIDRARC a merge esterno .c (fatto, ma può essere migliorato)
 	# autopartenza di mrtg
 	# aggiornamento automatico geoip db (dovrebbe essere aggiornato una volta al mese)
 	#    primo del mese:
 	#    http://geolite.maxmind.com/download/geoip/database/GeoLiteCity.dat.gz
 	#    utilizzare una versione di geoip db locale?
-	# rivedere i costrutti condizionati (eccessivo uso di continue)
 	# abbandonare MySQL in favore di sqlite?
 	# aprire i file di log/mrtg solo in lettura per root
 	# iptables sistemare output nel ripristino delle regole. vedi commit: a28c1ff6578f78c0707eff6b68fb37ced8f5de86
@@ -535,7 +538,11 @@ if __name__ == "__main__":
 			geoip_db     = False
 		#   MRTG
 		file_mrtg		 = configurazione.get('Generali', 'mrtg_file')
-		file_mrtg_stats	 = open(file_mrtg, 'w')
+		try:
+			file_mrtg_stats	 = open(file_mrtg, 'w')
+		except:
+			print "Main: impossibile creare il file per MRTG:",file_mrtg_stats
+			sys.exit(-1)
 		#   PBL
 		contatore_pbl    = 0
 		pbl_email        = configurazione.get('Generali', 'pbl_email')
@@ -551,7 +558,6 @@ if __name__ == "__main__":
 		RegExps.append(re.compile('.*\[postfix/smtpd\] too many errors after .* from (.*)\[(.*)\]')) # too many errors
 		RegExps.append(re.compile('.*RCPT from (.*)\[(.*)\].*Relay access denied.*from=<(.*)> to=<(.*)> proto')) # rely access denied
 		RegExps.append(re.compile('.*\[postfix/smtpd\] timeout after .* from (.*)\[(.*)\]')) # timeout
-		del confp
 
 	if True: # controllo degli eseguibili necessari
 		for cmd in ['/usr/bin/rsync','/usr/bin/wget','./cidrmerge']:
