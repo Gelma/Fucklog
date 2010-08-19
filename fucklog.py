@@ -441,12 +441,11 @@ if __name__ == "__main__":
 	# passaggio di CIDRARC a merge esterno .c
 	# autopartenza di mrtg
 	# aggiornamento automatico geoip db (dovrebbe essere aggiornato una volta al mese)
-	# primo del mese:
-	# http://geolite.maxmind.com/download/geoip/database/GeoLiteCity.dat.gz
-	# utilizzare una versione di geoip db locale?
+	#    primo del mese:
+	#    http://geolite.maxmind.com/download/geoip/database/GeoLiteCity.dat.gz
+	#    utilizzare una versione di geoip db locale?
 	# rivedere i costrutti condizionati (eccessivo uso di continue)
 	# abbandonare MySQL in favore di sqlite?
-	# incorporare le classi esterne per non dover obbligare a installare nulla manualmente?
 	
 	if True: # controllo directory temporanee
 		if not os.path.isdir('/tmp/.fucklog'):
@@ -522,10 +521,12 @@ if __name__ == "__main__":
 
 	if True: # ripristino delle regole di IpTables
 		logit('Main: ripristino IpTables')
-		subprocess.call(shlex.split("/sbin/iptables -D INPUT -p tcp --dport 25 -j fucklog")) # elimino l'eventuale jump presente
-		for flag in ['F', 'X']: subprocess.call(shlex.split("/sbin/iptables -"+flag+" fucklog")) # per poter eliminare la catena fucklog
-		subprocess.call(shlex.split("/sbin/iptables -N fucklog")) # ricreo la catena
-		subprocess.call(shlex.split("/sbin/iptables -A INPUT -p tcp --dport 25 -j fucklog")) # la punto
+		if not os.system("/sbin/iptables -L fucklog -n"): # se esiste la catena fucklog
+			subprocess.call(shlex.split("/sbin/iptables -F fucklog")) # la svuoto
+		else:
+			subprocess.call(shlex.split("/sbin/iptables -N fucklog")) # diversamente la creo
+		if os.system("/sbin/iptables -L INPUT -n|/bin/grep fucklog"): # se non esiste il jump presente
+			subprocess.call(shlex.split("/sbin/iptables -A INPUT -p tcp --dport 25 -j fucklog")) # lo creo
 		db.execute('delete from BLOCKED where END < CURRENT_TIMESTAMP()') # disintegro le regole scadute nel frattempo
 		db.execute('select IP from BLOCKED order by END') # e ripopolo
 		for IP in db.fetchall(): subprocess.call(shlex.split("/sbin/iptables -A 'fucklog' -s "+IP[0]+" --protocol tcp --dport 25 -j DROP"))
@@ -567,6 +568,7 @@ if __name__ == "__main__":
 			file_mrtg_stats.close()
 			log_file.close()
 			os.remove(pidfile)
+			print "Eventualmente ricordati svuotare le regole di IpTables."
 			sys.exit()
 		if command == "a":
 			print "aggiornamento CidrArc"
