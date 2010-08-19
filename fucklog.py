@@ -33,9 +33,14 @@ except:
 	print """Manca il package MySQLdb (mysql-python.sourceforge.net). Deb: python-mysqldb"""
 	sys.exit(-1)
 
+
 def aggiorna_cidrarc():
 	"""Prendo il contenuto di Cidr->Fucklog->MySQL, riduco alle classi minime, e infilo il risultato in CidrArc->Fucklog-MySQL"""
 
+	if os.path.isfile('./cidrmerge'): # se ho disponibile l'eseguibile cidrmerge
+		nuovo_aggiorna_cidrarc() # eseguo la nuova funzione
+		return
+	
 	if(lock_cidrarc.acquire(0) == False):
 		logit('AggCidrarc: aggiornamento già in esecuzione, tralascio.')
 		return
@@ -446,12 +451,6 @@ if __name__ == "__main__":
 	#    utilizzare una versione di geoip db locale?
 	# rivedere i costrutti condizionati (eccessivo uso di continue)
 	# abbandonare MySQL in favore di sqlite?
-	
-	if True: # controllo directory temporanee
-		if not os.path.isdir('/tmp/.fucklog'):
-			os.system('/bin/rm -fr /tmp/.fucklog')
-		if not os.path.isdir('/tmp/.fucklog/uce'):
-			os.system('/bin/mkdir -p /tmp/.fucklog/uce')
 
 	if True: # lettura della configurazione e definizione delle variabili globali
 		configurazione = ConfigParser.ConfigParser()
@@ -478,6 +477,7 @@ if __name__ == "__main__":
 		lasso_minuti     = configurazione.get('Generali', 'aggiorna_lasso').split(":")
 		uce_ore, \
 		uce_minuti       = configurazione.get('Generali', 'aggiorna_uce').split(":")
+		uce_dir          = configurazione.get('Generali', 'uce_dir')
 		ore_di_blocco    = configurazione.getint('Generali', 'ore_di_blocco')
 		#   GeoIP
 		geoip_db_file	 = configurazione.get('Generali', 'geoip_db_file')
@@ -506,6 +506,12 @@ if __name__ == "__main__":
 		RegExps.append(re.compile('.*\[postfix/smtpd\] too many errors after .* from (.*)\[(.*)\]')) # too many errors
 		RegExps.append(re.compile('.*RCPT from (.*)\[(.*)\].*Relay access denied.*from=<(.*)> to=<(.*)> proto')) # rely access denied
 		RegExps.append(re.compile('.*\[postfix/smtpd\] timeout after .* from (.*)\[(.*)\]')) # timeout
+
+	if True: # controllo directory temporanee
+		if not os.path.isdir('/tmp/.fucklog'):
+			os.system('/bin/rm -fr /tmp/.fucklog')
+		if not os.path.isdir('/tmp/.fucklog/uce'):
+			os.system('/bin/mkdir -p /tmp/.fucklog/uce')
 
 	if True: # controllo istanze attive
 		if os.path.isfile(pidfile): # controllo istanze attive
