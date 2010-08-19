@@ -478,7 +478,6 @@ if __name__ == "__main__":
 	# abbandonare MySQL in favore di sqlite?
 	# aprire i file di log/mrtg solo in lettura per root
 	# iptables sistemare output nel ripristino delle regole. vedi commit: a28c1ff6578f78c0707eff6b68fb37ced8f5de86
-	# controlli esistenza wget/rsync/cidrmerge
 
 	if True: # lettura della configurazione e definizione delle variabili globali
 		configurazione = ConfigParser.ConfigParser()
@@ -550,6 +549,12 @@ if __name__ == "__main__":
 		RegExps.append(re.compile('.*RCPT from (.*)\[(.*)\].*Relay access denied.*from=<(.*)> to=<(.*)> proto')) # rely access denied
 		RegExps.append(re.compile('.*\[postfix/smtpd\] timeout after .* from (.*)\[(.*)\]')) # timeout
 		del confp
+
+	if True: # controllo degli eseguibili necessari
+		for cmd in ['/usr/bin/rsync','/usr/bin/wget','./cidrmerge']:
+			if not os.path.isfile(cmd):
+				print "Main: necessito di",cmd
+				sys.exit(-1)
 
 	if True: # controllo istanze attive
 		if os.path.isfile(pidfile): # controllo istanze attive
