@@ -335,12 +335,6 @@ def logit(*args):
 
 def nazione_dello_ip(IP):
 	"""Ricevo un IP, ne torno la nazione"""
-	if geoip_db is False:
-		global geoip_db
-		try:
-			geoip_db = pygeoip.GeoIP(geoip_db_file)
-		except:
-			return None
 	try:
 		return geoip_db.country_name_by_addr(IP)
 	except:
@@ -488,7 +482,10 @@ if __name__ == "__main__":
 		ore_di_blocco    = configurazione.getint('Generali', 'ore_di_blocco')
 		#   GeoIP
 		geoip_db_file	 = configurazione.get('Generali', 'geoip_db_file')
-		geoip_db		 = False
+		try:
+			geoip_db     = pygeoip.GeoIP(geoip_db_file)
+		except:
+			geoip_db     = False
 		#   MRTG
 		file_mrtg		 = configurazione.get('Generali', 'mrtg_file')
 		file_mrtg_stats	 = open(file_mrtg, 'w')
