@@ -30,7 +30,7 @@ except:
 try:
 	import MySQLdb
 except:
-	print """Manca il package MySQLdb (mysql-python.sourceforge.net). Deb: python-mysqldb"""
+	print """Manca il package MySQLdb (mysql-python.sourceforge.net). Debian/Ubuntu: apt-get install python-mysqldb"""
 	sys.exit(-1)
 
 def nuovo_aggiorna_cidrarc():
@@ -41,17 +41,12 @@ def nuovo_aggiorna_cidrarc():
 		return
 
 	print "Partito aggiornamento"
-	# definisco i file di appoggio e le variabili
-	tmpfd=open('/tmp/.fucklog/tmp-blacklist','w')
-	totale_input = 0
-	
+	tmpfd=open(uce_dir+'tmp-blacklist','w')
+
 	logit('AggCidrarc Nuovo: inizio')
 	cronometro = time.time()
 	db = connetto_db()
-	
-	# elenco mie whitelist +
-	# elenco rsync whitelist
-	
+		
 	print "sparo i miei IP"
 	# prendo l'elenco dei miei IP + CIDR
 	db.execute('select INET_NTOA(IP) from IP UNION SELECT CIDR from CIDR') # Unisco e le CIDR e i singoli IP
@@ -59,26 +54,27 @@ def nuovo_aggiorna_cidrarc():
 	for line in db.fetchall():
 		tmpfd.write(line[0]+'\n')
 	tmpfd.close()
-	logit('AggCidrarc Nuovo: IP+CIDR Mysql',totale_input)
 	
 	print "sparo le blacklist"
 	# accodo blacklist UCE:
 	for blacklist in ['dnsbl-1.uceprotect.net', 'dnsbl-2.uceprotect.net', 'cbl.abuseat.org', 'psbl.txt']:
-		if os.path.isfile('/tmp/.fucklog/uce/'+blacklist):
-			os.system('/bin/cat /tmp/.fucklog/uce/'+blacklist+' >> /tmp/.fucklog/tmp-blacklist')
+		blacklist = uce_dir+blacklist
+		if os.path.isfile(blacklist):
+			os.system('/bin/cat '+blacklist+' >> '+uce_dir+'tmp-blacklist')
 			logit('AggCidrarc Nuovo: aggiunta blacklist',blacklist)
 
 	print "sparo le whitelist"
 	# prima mettiamo le classi private
-	tmpfd=open('/tmp/.fucklog/tmp-whitelist','w')
+	tmpfd=open(uce_dir+'tmp-whitelist','w')
 	for private in ['10.0.0.0/8','127.0.0.0/8','172.16.0.0/12','192.168.0.0/16']:
 		tmpfd.write(private+'\n')
 	tmpfd.close()
 	
-	for whitelist in ['/tmp/.fucklog/uce/ips.whitelisted.org','/etc/postfix/dnswl/postfix-dnswl-permit','/etc/postfix/whitelistip']:
+	for whitelist in [uce_dir+'ips.whitelisted.org','/etc/postfix/dnswl/postfix-dnswl-permit','/etc/postfix/whitelistip']:
 		if os.path.isfile(whitelist):
-			os.system('/bin/cat '+whitelist+' >> /tmp/.fucklog/tmp-whitelist')
+			os.system('/bin/cat '+whitelist+' >> '+uce_dir+'tmp-whitelist')
 	return
+
 
 	lista_cidrs_nuovi = set([c[0] for c in db.fetchall()])
 	logit('AggCidrarc: totale CIDR iniziali', len(lista_cidrs_nuovi))
@@ -148,25 +144,25 @@ def aggiorna_blacklist():
 		dormi_fino_alle(uce_ore, uce_minuti)
 	
 		logit('UCE: aggiornamento UceProtect')
-		uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd --compress-level=9 rsync-mirrors.uceprotect.net::RBLDNSD-ALL/ '+uce_dir+'/')	
+		uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd --compress-level=9 rsync-mirrors.uceprotect.net::RBLDNSD-ALL/ '+uce_dir)	
 		if subprocess.call(uce_rsync) != 0:
 			logit('UCE: errore con rsync1')
 
 		logit('UCE: aggiornamento surriel')
-		uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd psbl-mirror.surriel.com::psbl/psbl.txt '+uce_dir+'/psbl.txt')	
+		uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd psbl-mirror.surriel.com::psbl/psbl.txt '+uce_dir+'psbl.txt')
 		if subprocess.call(uce_rsync) != 0:
 			logit('UCE: errore con rsync2')
 
 		logit('UCE: aggiornamento cbl')
-		uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd rsync://rsync.cbl.abuseat.org/cbl/list.txt '+uce_dir+'/cbl.abuseat.org')
+		uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd rsync://rsync.cbl.abuseat.org/cbl/list.txt '+uce_dir+'cbl.abuseat.org')
 		if subprocess.call(uce_rsync) != 0:
 			logit('UCE: errore con rsync3')
 
 		logit('UCE: aggiornamento Lasso')
 		os.remove(+uce_dir+'/drop.lasso')
-		os.system("/usr/bin/wget -q 'http://www.spamhaus.org/drop/drop.lasso' -O "+uce_dir+'/drop.lasso')
+		os.system("/usr/bin/wget -q 'http://www.spamhaus.org/drop/drop.lasso' -O "+uce_dir+'drop.lasso')
 		
-		aggiorna_cidrarc() # temporaneamente, faccio l'update dopo l'ultima operazione in senso temporale
+		aggiorna_cidrarc() # invoco l'aggiornamento delle liste
 
 def aggiorna_pbl():
 	"""Controllo le CIDR di PBL inserite via web e le attivo (PblUrl->Fucklog->MySQL)"""
@@ -422,7 +418,7 @@ def scadenza_iptables():
 	db = connetto_db()
 
 	while True:
-		time.sleep(900) # ogni quarto d'ora
+		time.sleep(1800) # ogni mezz'ora
 		db.execute('select IP from BLOCKED where END < CURRENT_TIMESTAMP()')
 		for IP in db.fetchall():
 			if subprocess.call(['/sbin/iptables', '-D', 'fucklog', '-s', IP[0], '--protocol', 'tcp', '--dport', '25', '-j', 'DROP'], shell=False):
@@ -482,7 +478,7 @@ if __name__ == "__main__":
 	# abbandonare MySQL in favore di sqlite?
 	# aprire i file di log/mrtg solo in lettura per root
 	# iptables sistemare output nel ripristino delle regole. vedi commit: a28c1ff6578f78c0707eff6b68fb37ced8f5de86
-	# controlli esistenza wget/rsync
+	# controlli esistenza wget/rsync/cidrmerge
 
 	if True: # lettura della configurazione e definizione delle variabili globali
 		configurazione = ConfigParser.ConfigParser()
@@ -515,13 +511,18 @@ if __name__ == "__main__":
 		uce_ore, \
 		uce_minuti       = configurazione.get('Generali', 'aggiorna_uce').split(":")
 		uce_dir          = configurazione.get('Generali', 'uce_dir')
+		if not uce_dir.startswith('/'):
+			print "Main: il percordo di uce_dir",uce_dir,"deve essere assoluto"
+			sys.exit(-1)
+		if not uce_dir.endswith('/'):
+			uce_dir = uce_dir + '/'
 		if not os.path.exists(uce_dir): # se non esiste la directory per rbl
 			os.mkdir(uce_dir)
 			print "Main: è stata creata la directory", uce_dir
 			logit("Main: è stata creata la directory", uce_dir)
 		else:
 			if not os.path.isdir(uce_dir): # se non si tratta di una directory
-				print "Main: ",uce_dir,"non è una directory. Non posso utilizzarla."
+				print "Main: ",uce_dir," non è una directory. Non posso utilizzarla."
 				sys.exit(-1)
 		ore_di_blocco    = configurazione.getint('Generali', 'ore_di_blocco')
 		#   GeoIP
@@ -533,11 +534,11 @@ if __name__ == "__main__":
 		#   MRTG
 		file_mrtg		 = configurazione.get('Generali', 'mrtg_file')
 		file_mrtg_stats	 = open(file_mrtg, 'w')
-		# PBL
+		#   PBL
 		contatore_pbl    = 0
 		pbl_email        = configurazione.get('Generali', 'pbl_email')
 		pbl_url          = configurazione.get('Generali', 'pbl_url')
-		# PIDfile
+		#   PIDfile
 		pidfile          = '/var/run/fucklog.pid'
 		# RexExps
 		RegExps					= []
@@ -548,6 +549,7 @@ if __name__ == "__main__":
 		RegExps.append(re.compile('.*\[postfix/smtpd\] too many errors after .* from (.*)\[(.*)\]')) # too many errors
 		RegExps.append(re.compile('.*RCPT from (.*)\[(.*)\].*Relay access denied.*from=<(.*)> to=<(.*)> proto')) # rely access denied
 		RegExps.append(re.compile('.*\[postfix/smtpd\] timeout after .* from (.*)\[(.*)\]')) # timeout
+		del confp
 
 	if True: # controllo istanze attive
 		if os.path.isfile(pidfile): # controllo istanze attive
