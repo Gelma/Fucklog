@@ -115,7 +115,7 @@ def aggiorna_blacklist():
 
 		os.remove(uce_dir+'/drop.lasso')
 		if not os.system("/usr/bin/wget -q 'http://www.spamhaus.org/drop/drop.lasso' -O "+uce_dir+'drop.lasso'):
-			logit('Uce: errore wget lasso')
+			logit('UCE: errore wget lasso')
 		
 		aggiorna_cidrarc() # invoco l'aggiornamento delle liste
 
@@ -227,9 +227,6 @@ def ip_gia_in_cidr(IP):
 def ip_in_pbl(IP):
 	"""Accetto un IP. Torno Url/False se l'IP è in PBL"""
 
-	global contatore_pbl
-
-	contatore_pbl += 1
 	qstr = "%s.pbl.spamhaus.org." % '.'.join(reversed(IP.split('.'))) # Giro IP: 1.2.3.4 -> 4.3.2.1
 	try:
 		qa = dns.resolver.query(qstr, 'TXT')
@@ -505,7 +502,6 @@ if __name__ == "__main__":
 			print "Main: impossibile creare il file per MRTG:",file_mrtg_stats
 			sys.exit(-1)
 		#   PBL
-		contatore_pbl    = 0
 		pbl_email        = configurazione.get('Generali', 'pbl_email')
 		pbl_url          = configurazione.get('Generali', 'pbl_url')
 		#   PIDfile
@@ -588,7 +584,5 @@ if __name__ == "__main__":
 		if command == "a":
 			print "aggiornamento CidrArc"
 			aggiorna_cidrarc()
-		if command == "p":
-			print contatore_pbl
 		if command == "h":
-			print "Help:\n\tq: quit\n\ta: Aggiorna CidrArc\n\tp: Stampa numero di richieste PBL\n"
+			print "Help:\n\tq: quit\n\ta: Aggiorna CidrArc\n"
