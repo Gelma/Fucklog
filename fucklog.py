@@ -56,7 +56,7 @@ def aggiorna_cidrarc():
 	for private in ['10.0.0.0/8','127.0.0.0/8','172.16.0.0/12','192.168.0.0/16']:
 		tmpfd.write(private+'\n')
 	tmpfd.close()
-	
+
 	# raccatto le eventuali whitelist disponibili in giro
 	for whitelist in [uce_dir+'ips.whitelisted.org','/etc/postfix/dnswl/postfix-dnswl-permit','/etc/postfix/whitelistip']:
 		if os.path.isfile(whitelist):
@@ -65,13 +65,13 @@ def aggiorna_cidrarc():
 	file_rbl = '' # preparo gli argomenti per il cat successivo
 	for rbl in ['tmp-blacklist ','dnsbl-1.uceprotect.net ', 'dnsbl-2.uceprotect.net ', 'cbl.abuseat.org ', 'psbl.txt ']:
 		file_rbl = uce_dir+rbl+file_rbl
-	
+
 	lista_cidrs_nuovi = set() # preparo l'elenco dei nuovi IP
 	for line in os.popen('/bin/cat '+file_rbl+' | ./cidrmerge '+uce_dir+'tmp-whitelist'):
 		line = line[:-1]
 		if not line.endswith('/32'):
 			lista_cidrs_nuovi.add(line)
-	
+
 	os.remove(uce_dir+'tmp-whitelist') # elimino i file temporanei
 	os.remove(uce_dir+'tmp-blacklist')
 
@@ -101,7 +101,7 @@ def aggiorna_blacklist():
 	while True:
 		dormi_fino_alle(uce_ore, uce_minuti)
 		logit('UCE: inizio aggiornamento')
-		uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd --compress-level=9 rsync-mirrors.uceprotect.net::RBLDNSD-ALL/ '+uce_dir)	
+		uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd --compress-level=9 rsync-mirrors.uceprotect.net::RBLDNSD-ALL/ '+uce_dir)
 		if subprocess.call(uce_rsync) != 0:
 			logit('UCE: errore rsync UceProtect.net')
 
@@ -116,7 +116,7 @@ def aggiorna_blacklist():
 		os.remove(uce_dir+'/drop.lasso')
 		if not os.system("/usr/bin/wget -q 'http://www.spamhaus.org/drop/drop.lasso' -O "+uce_dir+'drop.lasso'):
 			logit('UCE: errore wget lasso')
-		
+
 		aggiorna_cidrarc() # invoco l'aggiornamento delle liste
 
 def aggiorna_pbl():
@@ -177,7 +177,7 @@ def aggiorna_pbl():
 
 def blocca_in_iptables(indirizzo_da_bloccare, bloccalo_per):
 	"""Ricevo IP e numero di giorni. Metto in IPTables e aggiorno Blocked->Fucklog->Mysql"""
-		
+
 	fino_al_timestamp = str(datetime.datetime.now() + datetime.timedelta(hours=ore_di_blocco * bloccalo_per)) # calcolo il timestamp di fine
 	if subprocess.call(['/sbin/iptables', '-A', 'fucklog', '-s', indirizzo_da_bloccare, '--protocol', 'tcp', '--dport', '25', '-j', 'DROP'], shell=False):
 		logit('BloccaIpTables: errore IpTables', indirizzo_da_bloccare)
@@ -563,7 +563,7 @@ if __name__ == "__main__":
 			scadenza_iptables,
 			lettore
 		]
-		
+
 		for thread in threads:
 			tmp = multiprocessing.Process(target=thread)
 			elenco_thread.append(tmp)
