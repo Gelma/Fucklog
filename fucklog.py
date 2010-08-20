@@ -436,8 +436,6 @@ def verifica_manuale_pbl(IP):
 if __name__ == "__main__":
 	# Todo list:
 	# A quel punto si può rinominare in PBL la tabella CIDR. Ocio ai riferimenti in php.
-	# tailf
-	# rigenerazione sensata di CIDRARC (renderla più frequenta una volta resa sufficientemente veloce)
 	# autopartenza di mrtg
 	# aggiornamento automatico geoip db (dovrebbe essere aggiornato una volta al mese)
 	#    primo del mese:
@@ -446,6 +444,7 @@ if __name__ == "__main__":
 	# abbandonare MySQL in favore di sqlite?
 	# aprire i file di log/mrtg solo in lettura per root
 	# iptables sistemare output nel ripristino delle regole. vedi commit: a28c1ff6578f78c0707eff6b68fb37ced8f5de86
+	# inserire possibilita' whitelist/blacklist personalizzate
 
 	if True: # lettura della configurazione e definizione delle variabili globali
 		configurazione = ConfigParser.ConfigParser()
