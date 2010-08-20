@@ -6,7 +6,7 @@ database = miodb        ; nome del database da usare
 
 [Postfix]
 mail_log   = /var/log/mail.log  ; file di log da monitorare
-intervallo = 5                  ; ogni quanti minuti leggere il file di log di Postfix
+intervallo = 5                  ; ogni quanti secondi controllare il file di log
 
 [Generali]
 debug         = 0                                ; (0=False/1=True) Se True, scrive un mucchio di roba in più nel log

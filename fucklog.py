@@ -244,10 +244,28 @@ def lettore():
 
 	global db
 
+	fdlog = open(postfix_log_file, "r")
+	fdlog_stat = os.stat(postfix_log_file)
+	fdlog_inode, fdlog_size = fdlog_stat.st_ino, fdlog_stat.st_size
+	
 	while True:
-		logit('Log: nuovo giro')
-		cronometro = time.time()
-		for log_line in subprocess.Popen(grep_command, shell=False, stdout=subprocess.PIPE).communicate()[0].split('\n'):
+		log_line = fdlog.readline()
+		if not log_line:
+			try:
+				t_stat = os.stat(postfix_log_file)
+				t_inode, t_size = t_stat.st_ino, t_stat.st_size
+			except:
+				logit("Lettore: fallito stat di log. Rotazione?")
+				time.sleep(intervallo)
+				continue
+			if (( t_inode != fdlog_inode ) or (t_size < fdlog_size)):
+				logit("Lettore: cambiato logfile %s => o_inode: %s, o_size: %s ; n_inode: %s, n_size: %s" % (postfix_log_file, fdlog_inode, fdlog_size, t_inode, t_size))
+				fdlog.close()
+				fdlog = open(postfix_log_file, "r")
+				fdlog_inode = t_inode
+			fdlog_size = t_size
+			time.sleep(intervallo)
+		else: # diversamente parso quanto letto dal log
 			for REASON, regexp in enumerate(RegExps): # REASON=0 (rbl) 1 (helo) 2 (lost connection) 3 (too many errors) 4 (relay access) 5 (timeout)
 				m = regexp.match(log_line) # applico le regexp
 				if m: # se combaciano
@@ -298,8 +316,6 @@ def lettore():
 						if Debug: logit('Log:', IP, 'bloccato con moltiplicatore', bloccalo_per)
 						blocca_in_iptables(indirizzo_da_bloccare, bloccalo_per)
 						logit("Log:", indirizzo_da_bloccare, '|', bloccalo_per, '|', DNS, '|', FROM, '|', TO, '|', RegExpsReason[REASON])
-		logit('Log: controllato in', time.time() - cronometro, 'secondi')
-		time.sleep(60 * intervallo)
 
 def logit(*args):
 	"""Ricevo un numero di argomenti a piacere, li salvo come unica stringa nei log"""
@@ -536,10 +552,7 @@ if __name__ == "__main__":
 		for IP in db.fetchall(): subprocess.call(shlex.split("/sbin/iptables -A 'fucklog' -s "+IP[0]+" --protocol tcp --dport 25 -j DROP"))
 
 	if True: # controllo validita' del file di log
-		if os.path.isfile(postfix_log_file):
-			grep_command = "/bin/grep -E '(fully-qualified|blocked|lost connection|too many errors|Relay access denied|timeout after)' " + postfix_log_file
-			grep_command = tuple(shlex.split(grep_command))
-		else:
+		if not os.path.isfile(postfix_log_file):
 			logit("Main: postfix log file inutilizzabile", postfix_log_file)
 			print "Problema sul file di log", postfix_log_file
 			sys.exit(-1)
