@@ -12,7 +12,6 @@ try:
 	import subprocess
 	import sys
 	import time
-	import urllib
 except:
 	import sys
 	print "Errore nell'import dei moduli standard. Versione troppo vecchia dell'interprete?"
