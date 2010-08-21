@@ -35,7 +35,7 @@ except:
 def aggiorna_cidrarc():
 	"""Prendo gli IP noti che ho, insieme a un po' di blacklist, meno le whitelist, e sbatto tutto in CidrArc->Fucklog-MySQL"""
 
-	if(lock_cidrarc.acquire(0) == False):
+	if not lock_cidrarc.acquire(0):
 		logit('AggCidrarc: aggiornamento già in esecuzione, tralascio.')
 		return
 
