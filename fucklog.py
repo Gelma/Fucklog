@@ -44,21 +44,30 @@ def aggiorna_cidrarc():
 	cronometro = time.time()
 	db = connetto_db()
 
-	# genero elenco miei IP e CIDR
-	tmpfd=open(uce_dir+'tmp-blacklist','w')
-	db.execute('select INET_NTOA(IP) from IP UNION SELECT CIDR from CIDR') # Unisco e le CIDR e i singoli IP
+	tmpfd=open(uce_dir+'tmp-blacklist','w') # genero elenco dei miei IP/CIDR per blacklist
+	db.execute('select INET_NTOA(IP) from IP UNION SELECT CIDR from CIDR')
 	for line in db.fetchall():
 		tmpfd.write(line[0]+'\n')
-	tmpfd.close()
 
-	# genero whitelist con classi private
-	tmpfd=open(uce_dir+'tmp-whitelist','w')
+	with open(uce_dir+'spamcannibal.org', 'r') as tmpfdinput: # esporto spamcannibal in CIDR
+		for line in tmpfdinput:
+			ip = line.split()[0]
+			try:
+				tmp = netaddr.IPGlob(ip)
+			except:
+				continue
+			for cidr in netaddr.glob_to_cidrs(ip):
+				tmpfd.write(str(cidr)+'\n')
+
+	tmpfd.close() # chiudo tmp-blacklist
+
+	tmpfd=open(uce_dir+'tmp-whitelist','w') # genero whitelist con classi private
 	for private in ['10.0.0.0/8','127.0.0.0/8','172.16.0.0/12','192.168.0.0/16']:
 		tmpfd.write(private+'\n')
 	tmpfd.close()
 
 	# raccatto le eventuali whitelist disponibili in giro
-	for whitelist in [uce_dir+'ips.whitelisted.org','/etc/postfix/dnswl/postfix-dnswl-permit','/etc/postfix/whitelistip']:
+	for whitelist in [uce_dir+'ips.whitelisted.org',uce_dir+'dnswl_white_list.txt','/etc/postfix/whitelistip']:
 		if os.path.isfile(whitelist):
 			os.system('/bin/cat '+whitelist+' >> '+uce_dir+'tmp-whitelist')
 
@@ -101,6 +110,11 @@ def aggiorna_blacklist():
 	while True:
 		dormi_fino_alle(uce_ore, uce_minuti)
 		logit('UCE: inizio aggiornamento')
+		
+		uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd rsync1.dnswl.org::dnswl/postfix-dnswl-permit '+uce_dir+'dnswl_white_list.txt')
+		if subprocess.call(uce_rsync) != 0:
+			logit('UCE: errore rsync dnswl')
+
 		uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd --compress-level=9 rsync-mirrors.uceprotect.net::RBLDNSD-ALL/ '+uce_dir)
 		if subprocess.call(uce_rsync) != 0:
 			logit('UCE: errore rsync UceProtect.net')
@@ -113,11 +127,15 @@ def aggiorna_blacklist():
 		if subprocess.call(uce_rsync) != 0:
 			logit('UCE: errore rsync abuseat.org')
 
+		uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd  rsync.spamcannibal.org::zonefiles/bl.spamcannibal.org.in.ip4set.rbl '+uce_dir+'spamcannibal.org')
+		if subprocess.call(uce_rsync) != 0:
+			logit('UCE: errore rsync spamcannibal')
+
 		os.remove(uce_dir+'/drop.lasso')
-		if not os.system("/usr/bin/wget -q 'http://www.spamhaus.org/drop/drop.lasso' -O "+uce_dir+'drop.lasso'):
+		if os.system("/usr/bin/wget -q 'http://www.spamhaus.org/drop/drop.lasso' -O "+uce_dir+'drop.lasso'):
 			logit('UCE: errore wget lasso')
 
-		aggiorna_cidrarc() # invoco l'aggiornamento delle liste
+		aggiorna_cidrarc()
 
 def aggiorna_pbl():
 	"""Controllo le CIDR di PBL inserite via web e le attivo (PblUrl->Fucklog->MySQL)"""
@@ -413,7 +431,7 @@ def statistiche_mrtg():
 		file_mrtg_stats.write(ip_di_oggi + '/' + ip_totali + '\n')
 		file_mrtg_stats.write('spam\n')
 		file_mrtg_stats.flush()
-		time.sleep(9 * 60)
+		time.sleep(5 * 60)
 
 def verifica_manuale_pbl(IP): 
 	"""Ricevo un IP e lo metto in coda per la verifica via WEB (PblUrl->Fucklog->MySQL)"""
