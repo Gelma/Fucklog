@@ -52,7 +52,7 @@ def aggiorna_cidrarc():
 		for line in tmpfdinput:
 			ip = line.split()[0]
 			try:
-				tmp = netaddr.IPGlob(ip)
+				assert netaddr.IPGlob(ip)
 			except:
 				continue
 			for cidr in netaddr.glob_to_cidrs(ip):
@@ -149,7 +149,7 @@ def aggiorna_pbl():
 			CIDR = row[1]
 
 			try: # controllo la validita' dei dati
-				tmp = netaddr.IPAddress(IP)
+				assert netaddr.IPAddress(IP)
 			except:
 				logit('WebPBL: IP non valido', IP)
 				db.execute("delete from PBLURL where URL=%s", (IP,))
