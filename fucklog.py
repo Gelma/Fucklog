@@ -111,23 +111,23 @@ def aggiorna_blacklist():
 		logit('UCE: inizio aggiornamento')
 		
 		uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd rsync1.dnswl.org::dnswl/postfix-dnswl-permit '+uce_dir+'dnswl_white_list.txt')
-		if subprocess.call(uce_rsync) != 0:
+		if subprocess.call(uce_rsync):
 			logit('UCE: errore rsync dnswl')
 
 		uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd --compress-level=9 rsync-mirrors.uceprotect.net::RBLDNSD-ALL/ '+uce_dir)
-		if subprocess.call(uce_rsync) != 0:
+		if subprocess.call(uce_rsync):
 			logit('UCE: errore rsync UceProtect.net')
 
 		uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd psbl-mirror.surriel.com::psbl/psbl.txt '+uce_dir+'psbl.txt')
-		if subprocess.call(uce_rsync) != 0:
+		if subprocess.call(uce_rsync):
 			logit('UCE: errore rsync surriel.com')
 
 		uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd rsync://rsync.cbl.abuseat.org/cbl/list.txt '+uce_dir+'cbl.abuseat.org')
-		if subprocess.call(uce_rsync) != 0:
+		if subprocess.call(uce_rsync):
 			logit('UCE: errore rsync abuseat.org')
 
 		uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd  rsync.spamcannibal.org::zonefiles/bl.spamcannibal.org.in.ip4set.rbl '+uce_dir+'spamcannibal.org')
-		if subprocess.call(uce_rsync) != 0:
+		if subprocess.call(uce_rsync):
 			logit('UCE: errore rsync spamcannibal')
 
 		os.remove(uce_dir+'/drop.lasso')
