@@ -1,36 +1,37 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-try:
-	import ConfigParser
-	import datetime
-	import multiprocessing
-	import os
-	import random
-	import re
-	import shlex
-	import subprocess
-	import sys
-	import time
-except:
-	import sys
-	print "Errore nell'import dei moduli standard. Versione troppo vecchia dell'interprete?"
-	sys.exit(-1)
+if True: # import dei moduli
+	try: # quelli builtin
+		import ConfigParser
+		import datetime
+		import multiprocessing
+		import os
+		import random
+		import re
+		import shlex
+		import subprocess
+		import sys
+		import time
+	except:
+		import sys
+		print "Errore nell'import dei moduli standard. Versione troppo vecchia dell'interprete?"
+		sys.exit(-1)
 
-try:
-	import netaddr          # Versione 0.7.4
-	import pygeoip          # Versione 0.1.3
-	import dns.resolver     # Versione 1.8.0 di DnsPython.org
-	import dns.reversename  # Versione 1.8.0 di DnsPython.org
-except:
-	print "Errore nell'import dei moduli specifici di Fucklog."
-	sys.exit(-1)
-
-try:
-	import MySQLdb
-except:
-	print """Manca il package MySQLdb (mysql-python.sourceforge.net). Debian/Ubuntu: apt-get install python-mysqldb"""
-	sys.exit(-1)
+	try: # quelli esterni
+		import MySQLdb
+	except:
+		print """Manca il package MySQLdb (mysql-python.sourceforge.net). Debian/Ubuntu: apt-get install python-mysqldb"""
+		sys.exit(-1)
+	
+	try: # quelli inclusi in Fucklog
+		import netaddr          # Versione 0.7.4
+		import pygeoip          # Versione 0.1.3
+		import dns.resolver     # Versione 1.8.0 di DnsPython.org
+		import dns.reversename  # Versione 1.8.0 di DnsPython.org
+	except:
+		print "Errore nell'import dei moduli specifici di Fucklog."
+		sys.exit(-1)
 
 def aggiorna_cidrarc():
 	"""Prendo gli IP noti che ho, insieme a un po' di blacklist, meno le whitelist, e sbatto tutto in CidrArc->Fucklog-MySQL"""
