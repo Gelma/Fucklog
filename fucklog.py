@@ -182,7 +182,7 @@ def aggiorna_pbl():
 		for row in db.fetchall():
 			IP = row[0]
 			try:
-				tmp = netaddr.IPAddress(IP)
+				assert netaddr.IPAddress(IP)
 			except:
 				logit('WebPBL: non è un IP valido', IP)
 				db.execute("delete from PBLURL where URL=%s", (IP,))
