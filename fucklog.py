@@ -449,17 +449,18 @@ def verifica_manuale_pbl(IP):
 		logit('PBL: mancanza comando "mail"')
 
 if __name__ == "__main__":
-	# Todo list:
-	# A quel punto si può rinominare in PBL la tabella CIDR. Ocio ai riferimenti in php.
-	# autopartenza di mrtg
-	# aggiornamento automatico geoip db (dovrebbe essere aggiornato una volta al mese)
-	#    primo del mese:
-	#    http://geolite.maxmind.com/download/geoip/database/GeoLiteCity.dat.gz
-	#    utilizzare una versione di geoip db locale?
-	# abbandonare MySQL in favore di sqlite?
-	# aprire i file di log/mrtg solo in lettura per root
-	# iptables sistemare output nel ripristino delle regole. vedi commit: a28c1ff6578f78c0707eff6b68fb37ced8f5de86
-	# inserire possibilita' whitelist/blacklist personalizzate
+	if True: # da fare
+		# A quel punto si può rinominare in PBL la tabella CIDR. Ocio ai riferimenti in php.
+		# autopartenza di mrtg
+		# aggiornamento automatico geoip db (dovrebbe essere aggiornato una volta al mese)
+		#    primo del mese:
+		#    http://geolite.maxmind.com/download/geoip/database/GeoLiteCity.dat.gz
+		#    utilizzare una versione di geoip db locale?
+		# abbandonare MySQL in favore di sqlite?
+		# aprire i file di log/mrtg solo in lettura per root
+		# iptables sistemare output nel ripristino delle regole. vedi commit: a28c1ff6578f78c0707eff6b68fb37ced8f5de86
+		# inserire possibilita' whitelist/blacklist personalizzate
+		pass
 
 	if True: # lettura della configurazione e definizione delle variabili globali
 		configurazione = ConfigParser.ConfigParser()
@@ -543,13 +544,13 @@ if __name__ == "__main__":
 	if True: # controllo istanze attive
 		if os.path.isfile(pidfile): # controllo istanze attive
 			if os.path.isdir( '/proc/' + str( file(pidfile,'r').read() )):
-				print "Main: probabile ci sia un'altra istanza gia' in esecuzione di Fucklog. Se così non fosse, elimina "+pidfile
+				print "Main: probabile ci sia un'altra istanza già in esecuzione di Fucklog. Se così non fosse, elimina "+pidfile
 				sys.exit(-1)
 			else:
 				print "Mail: stale pidfile rimosso."
 		file(pidfile,'w').write(str(os.getpid()))	# controllare se resta il fd aperto
 
-	logit("Main: partenza di Fucklog")	
+	logit("Main: nuovo avvio")	
 	db = connetto_db()
 
 	if True: # ripristino delle regole di IpTables
@@ -566,8 +567,8 @@ if __name__ == "__main__":
 
 	if True: # controllo validita' del file di log
 		if not os.path.isfile(postfix_log_file):
-			logit("Main: postfix log file inutilizzabile", postfix_log_file)
-			print "Problema sul file di log", postfix_log_file
+			logit("Main: log file inutilizzabile:", postfix_log_file," - Inesistente? Non-file?")
+			print "File di log inutilizzabile. Controllare", postfix_log_file
 			sys.exit(-1)
 
 	if True: # partenza dei thread
