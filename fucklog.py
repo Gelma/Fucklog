@@ -87,7 +87,7 @@ def aggiorna_cidrarc():
 	tmpfd.close()
 
 	# raccatto le eventuali whitelist disponibili in giro
-	for whitelist in [uce_dir+'ips.whitelisted.org',uce_dir+'dnswl_white_list.txt','/etc/postfix/whitelistip']:
+	for whitelist in [uce_dir+'ips.whitelisted.org', uce_dir+'dnswl_white_list.txt', uce_dir+'swinog-dnsrbl-whitelist', '/etc/postfix/whitelistip']:
 		if os.path.isfile(whitelist):
 			os.system('/bin/cat '+whitelist+' >> '+uce_dir+'tmp-whitelist')
 
@@ -158,6 +158,10 @@ def aggiorna_blacklist():
 		os.remove(uce_dir+'antispam.imp.ch.txt')
 		if os.system("/usr/bin/wget -q 'http://antispam.imp.ch/spamlist' -O "+uce_dir+'antispam.imp.ch.txt'):
 			logit('UCE: errore wget antispam.imp.ch')
+
+		os.remove(uce_dir+'swinog-dnsrbl-whitelist')
+		if os.system("/usr/bin/wget -q 'http://antispam.imp.ch/swinog-dnsrbl-whitelist' -O "+uce_dir+'swinog-dnsrbl-whitelist'):
+			logit('UCE: errore wget swinog-dnsrbl-whitelist')
 
 		uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd rsync://rsync.unsubscore.com/LBBL/blacklist.txt '+uce_dir+'unsubscore.com')
 		if subprocess.call(uce_rsync):
