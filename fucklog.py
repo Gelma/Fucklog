@@ -78,7 +78,7 @@ def aggiorna_cidrarc():
 			os.system('/bin/cat '+whitelist+' >> '+uce_dir+'tmp-whitelist')
 
 	file_rbl = '' # preparo gli argomenti per il cat successivo
-	for rbl in ['tmp-blacklist ','dnsbl-1.uceprotect.net ', 'dnsbl-2.uceprotect.net ', 'cbl.abuseat.org ', 'psbl.txt ']:
+	for rbl in ['tmp-blacklist ','dnsbl-1.uceprotect.net ', 'dnsbl-2.uceprotect.net ', 'cbl.abuseat.org ', 'psbl.txt ', 'unsubscore.com ']:
 		file_rbl = uce_dir+rbl+file_rbl
 
 	lista_cidrs_nuovi = set() # preparo l'elenco dei nuovi IP
@@ -133,13 +133,17 @@ def aggiorna_blacklist():
 		if subprocess.call(uce_rsync):
 			logit('UCE: errore rsync abuseat.org')
 
-		uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd  rsync.spamcannibal.org::zonefiles/bl.spamcannibal.org.in.ip4set.rbl '+uce_dir+'spamcannibal.org')
+		uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd rsync.spamcannibal.org::zonefiles/bl.spamcannibal.org.in.ip4set.rbl '+uce_dir+'spamcannibal.org')
 		if subprocess.call(uce_rsync):
 			logit('UCE: errore rsync spamcannibal')
 
 		os.remove(uce_dir+'/drop.lasso')
 		if os.system("/usr/bin/wget -q 'http://www.spamhaus.org/drop/drop.lasso' -O "+uce_dir+'drop.lasso'):
 			logit('UCE: errore wget lasso')
+
+		uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd rsync://rsync.unsubscore.com/LBBL/blacklist.txt '+uce_dir+'unsubscore.com')
+		if subprocess.call(uce_rsync):
+			logit('UCE: errore rsync unsubscore.com')
 
 		aggiorna_cidrarc()
 
