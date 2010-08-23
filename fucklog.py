@@ -64,6 +64,20 @@ def aggiorna_cidrarc():
 				continue
 			for cidr in netaddr.glob_to_cidrs(ip):
 				tmpfd.write(str(cidr)+'\n')
+	
+	with open(uce_dir+'antispam.imp.ch.txt', 'r') as tmpfdinput: # estraggo IP da antispam.imp.ch.txt
+		for line in tmpfdinput:
+			try: # provo a prendere il secondo elemento di ogni riga
+				ip = line.split()[1]
+			except:
+				continue
+			if ip == '0.0.0.0': # elimino il temibile 0.0.0.0
+				continue
+			try:
+				assert netaddr.IPAddres(ip)
+			except:
+				continue
+			tmpfd.write(str(ip)+'\n')
 
 	tmpfd.close() # chiudo tmp-blacklist
 
@@ -137,9 +151,13 @@ def aggiorna_blacklist():
 		if subprocess.call(uce_rsync):
 			logit('UCE: errore rsync spamcannibal')
 
-		os.remove(uce_dir+'/drop.lasso')
+		os.remove(uce_dir+'drop.lasso')
 		if os.system("/usr/bin/wget -q 'http://www.spamhaus.org/drop/drop.lasso' -O "+uce_dir+'drop.lasso'):
 			logit('UCE: errore wget lasso')
+		
+		os.remove(uce_dir+'antispam.imp.ch.txt')
+		if os.system("/usr/bin/wget -q 'http://antispam.imp.ch/spamlist' -O "+uce_dir+'antispam.imp.ch.txt'):
+			logit('UCE: errore wget antispam.imp.ch')
 
 		uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd rsync://rsync.unsubscore.com/LBBL/blacklist.txt '+uce_dir+'unsubscore.com')
 		if subprocess.call(uce_rsync):
