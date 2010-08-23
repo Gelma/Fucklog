@@ -160,15 +160,24 @@ def aggiorna_blacklist():
 		if subprocess.call(uce_rsync):
 			logit('UCE: errore rsync spamcannibal')
 
-		os.remove(uce_dir+'drop.lasso')
+		try:
+			os.remove(uce_dir+'drop.lasso')
+		except:
+			pass
 		if os.system("/usr/bin/wget -q 'http://www.spamhaus.org/drop/drop.lasso' -O "+uce_dir+'drop.lasso'):
 			logit('UCE: errore wget lasso')
 		
-		os.remove(uce_dir+'antispam.imp.ch.txt')
+		try:
+			os.remove(uce_dir+'antispam.imp.ch.txt')
+		except:
+			pass
 		if os.system("/usr/bin/wget -q 'http://antispam.imp.ch/spamlist' -O "+uce_dir+'antispam.imp.ch.txt'):
 			logit('UCE: errore wget antispam.imp.ch')
 
-		os.remove(uce_dir+'swinog-dnsrbl-whitelist')
+		try:
+			os.remove(uce_dir+'swinog-dnsrbl-whitelist')
+		except:
+			pass
 		if os.system("/usr/bin/wget -q 'http://antispam.imp.ch/swinog-dnsrbl-whitelist' -O "+uce_dir+'swinog-dnsrbl-whitelist'):
 			logit('UCE: errore wget swinog-dnsrbl-whitelist')
 
