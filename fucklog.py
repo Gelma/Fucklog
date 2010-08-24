@@ -144,7 +144,7 @@ def aggiorna_blacklist():
 		if subprocess.call(uce_rsync):
 			logit('UCE: errore rsync dnswl')
 
-		uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd --compress-level=9 rsync-mirrors.uceprotect.net::RBLDNSD-ALL/ '+uce_dir)
+		uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd rsync-mirrors.uceprotect.net::RBLDNSD-ALL/ '+uce_dir)
 		if subprocess.call(uce_rsync):
 			logit('UCE: errore rsync UceProtect.net')
 
