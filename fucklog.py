@@ -199,7 +199,7 @@ def aggiorna_pbl():
 			IP = row[0]
 			CIDR = row[1]
 
-			try: # controllo la validita' dei dati
+			try: # controllo la validità dei dati
 				assert netaddr.IPAddress(IP)
 			except:
 				logit('WebPBL: IP non valido', IP)
@@ -212,8 +212,8 @@ def aggiorna_pbl():
 				db.execute("delete from PBLURL where URL=%s", (IP,))
 				continue
 
-			#if ip_gia_in_cidr(IP): # da riflettere: l'IP potrebbe gia' risultare in CIDR per altre classi intervenute nel frattempo
-			#	logit("WebPBL: gia' mappato "+IP)
+			#if ip_gia_in_cidr(IP): # da riflettere: l'IP potrebbe già risultare in CIDR per altre classi intervenute nel frattempo
+			#	logit("WebPBL: già mappato "+IP)
 			#	db.execute("delete from PBLURL where URL=%s",(IP,))
 			#	continue
 
@@ -239,7 +239,7 @@ def aggiorna_pbl():
 				db.execute("delete from PBLURL where URL=%s", (IP,))
 				continue
 			if ip_gia_in_cidr(IP):
-				logit("WebPBL: gia' mappato", IP)
+				logit("WebPBL: già mappato", IP)
 				db.execute("delete from PBLURL where URL=%s", (IP,))
 		db.close()
 
@@ -270,7 +270,7 @@ def dormi_fino_alle(ore, minuti):
 	time.sleep((datetime.datetime.now().replace(hour=int(ore), minute=int(minuti), second=0) - datetime.datetime.now()).seconds)
 
 def gia_in_blocco(IP):
-	"""Ricevo un IP/CIDR. Restituisco Vero se l'IP è gia' bloccato in IPTABLES (controllando Blocked->Fucklog->MySQL)."""
+	"""Ricevo un IP/CIDR. Restituisco Vero se l'IP è già bloccato in IPTABLES (controllando Blocked->Fucklog->MySQL)."""
 
 	db = connetto_db()
 	db.execute('select IP from BLOCKED where IP=%s', (IP,))
@@ -339,18 +339,18 @@ def lettore():
 					else: # se quindi REASON è 2 oppure 3 oppure 5
 						IP, DNS, FROM, TO = m.group(2), m.group(1), None, None
 						if IP == 'unknown' or DNS != 'unknown': continue
-					if not gia_in_blocco(IP): # controllo che l'IP non sia gia' bloccato
+					if not gia_in_blocco(IP): # controllo che l'IP non sia già bloccato
 						if Debug: logit('Log:', IP, 'non bloccato')
 						if DNS == 'unknown': DNS = None
 						CIDR_dello_IP = ip_gia_in_cidr(IP) # controllo se l'IP appartiene ad una classe nota
 						if CIDR_dello_IP: # se è di classe nota
-							if Debug: logit('Log:', IP, 'è di una classe nota')
-							if gia_in_blocco(CIDR_dello_IP): # controllo che la CIDR dell'IP non sia gia' bloccata
+							if Debug: logit('Log:', IP, "è di una classe nota")
+							if gia_in_blocco(CIDR_dello_IP): # controllo che la CIDR dell'IP non sia già bloccata
 								if Debug: logit('Log:', IP, 'risulta la sua CIDR già in iptables', CIDR_dello_IP)
 								continue
-							else: # se non è gia' bloccato
+							else: # se non è già bloccato
 								db.execute('select COUNTER from CIDRARC where CIDR=%s', (CIDR_dello_IP,)) # ricavo fino a quando bloccarlo
-								if db.rowcount: # se è gia' noto
+								if db.rowcount: # se è già noto
 									bloccalo_per = db.fetchone()[0] + 1 # incremento
 								else:
 									bloccalo_per = 1 # diversamente parto da 1
@@ -509,7 +509,7 @@ if __name__ == "__main__":
 		# abbandonare MySQL in favore di sqlite?
 		# aprire i file di log/mrtg solo in lettura per root
 		# iptables sistemare output nel ripristino delle regole. vedi commit: a28c1ff6578f78c0707eff6b68fb37ced8f5de86
-		# inserire possibilita' whitelist/blacklist personalizzate
+		# inserire possibilità whitelist/blacklist personalizzate
 		pass
 
 	if True: # lettura della configurazione e definizione delle variabili globali
@@ -615,7 +615,7 @@ if __name__ == "__main__":
 		db.execute('select IP from BLOCKED order by END') # e ripopolo
 		for IP in db.fetchall(): subprocess.call(shlex.split("/sbin/iptables -A 'fucklog' -s "+IP[0]+" --protocol tcp --dport 25 -j DROP"))
 
-	if True: # controllo validita' del file di log
+	if True: # controllo validità del file di log
 		if not os.path.isfile(postfix_log_file):
 			logit("Main: log file inutilizzabile:", postfix_log_file," - Inesistente? Non-file?")
 			print "File di log inutilizzabile. Controllare", postfix_log_file
