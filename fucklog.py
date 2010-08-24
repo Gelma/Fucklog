@@ -380,7 +380,7 @@ def lettore():
 							indirizzo_da_bloccare = IP
 						if Debug: logit('Log:', IP, 'bloccato con moltiplicatore', bloccalo_per)
 						blocca_in_iptables(indirizzo_da_bloccare, bloccalo_per)
-						logit("Log:", indirizzo_da_bloccare, '|', bloccalo_per, '|', DNS, '|', FROM, '|', TO, '|', RegExpsReason[REASON])
+						logit(indirizzo_da_bloccare, '|', bloccalo_per, '|', DNS, '|', FROM, '|', TO, '|', RegExpsReason[REASON])
 
 def logit(*args):
 	"""Ricevo un numero di argomenti a piacere, li salvo come unica stringa nei log"""
@@ -461,7 +461,7 @@ def scadenza_iptables():
 				continue
 			else:
 				db.execute('delete from BLOCKED where IP=%s', (IP[0],))
-				logit('DelIpTables: segato', IP[0])
+				if Debug: logit('DelIpTables: segato', IP[0])
 
 def statistiche_mrtg():
 	"""Aggiorno a cadenza fissa le statistiche per MRTG"""
