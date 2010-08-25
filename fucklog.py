@@ -115,6 +115,10 @@ def aggiorna_cidrarc():
 			continue
 		logit('AggCidrarc: aggiungo', cidr)
 		db.execute('insert into CIDRARC (CIDR, IPSTART, IPEND, SIZE) values (%s, %s, %s, %s)', (cidr, int(cidr[0]), int(cidr[-1]), cidr.size))
+	
+	for cidr in lista_cidrs_vecchi - lista_cidrs_nuovi: # cancello i vecchi
+		logit('AggCidrarc: rimuovo', cidr)
+		db.execute('delete from CIDRARC where CIDR=%s', (cidr,))
 
 	# hack per il fottuto badoo.com
 	cidr = netaddr.IPNetwork('87.245.192.0/21')
@@ -124,10 +128,6 @@ def aggiorna_cidrarc():
 	except:
 		pass
 	# da eliminare appena lo segano dalla whitelist ufficiale
-	
-	for cidr in lista_cidrs_vecchi - lista_cidrs_nuovi: # cancello i vecchi
-		logit('AggCidrarc: rimuovo', cidr)
-		db.execute('delete from CIDRARC where CIDR=%s', (cidr,))
 
 	db.close()
 	logit('AggCidrarc: completato in', time.time() - cronometro, 'secondi')
