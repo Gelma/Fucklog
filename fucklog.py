@@ -191,8 +191,7 @@ def aggiorna_pbl():
 	"""Controllo le CIDR di PBL inserite via web e le attivo (PblUrl->Fucklog->MySQL)"""
 
 	while True:
-		time.sleep(3600)
-		logit('WebPBL: inizio')
+		time.sleep(1800)
 		db = connetto_db()
 		db.execute("select URL, CIDR from PBLURL where CIDR is NOT null") # Prelevo le CIDR inserite via Web
 		for row in db.fetchall():
@@ -212,11 +211,6 @@ def aggiorna_pbl():
 				db.execute("delete from PBLURL where URL=%s", (IP,))
 				continue
 
-			#if ip_gia_in_cidr(IP): # da riflettere: l'IP potrebbe già risultare in CIDR per altre classi intervenute nel frattempo
-			#	logit("WebPBL: già mappato "+IP)
-			#	db.execute("delete from PBLURL where URL=%s",(IP,))
-			#	continue
-
 			if not netaddr.ip.all_matching_cidrs(netaddr.IPAddress(IP), [netaddr.IPNetwork(CIDR), ]):
 				logit("WebPBL: IP/CIDR non combaciano", IP, CIDR)
 				db.execute("delete from PBLURL where URL=%s", (IP,))
@@ -228,8 +222,7 @@ def aggiorna_pbl():
 				logit("WebPBL: fallito inserimento", CIDR)
 			db.execute("delete from PBLURL where URL=%s", (IP,))
 
-		# ripeto il controllo su tutti gli IP rimasti
-		db.execute("select URL from PBLURL where CIDR is null")
+		db.execute("select URL from PBLURL where CIDR is null") # ripeto il controllo su tutti gli IP rimasti
 		for row in db.fetchall():
 			IP = row[0]
 			try:
@@ -414,18 +407,16 @@ def pbl_expire():
 	time.sleep(120) # per evitare lo storm ad ogni ripartenza
 
 	while True:
-		logit('PBL Expire: inizio')
 		cidr_controllate = cidr_cancellate = 0
 		db = connetto_db()
-		db.execute("select CIDR from CIDR where CATEGORY='pbl' and LASTUPDATE < (CURRENT_TIMESTAMP() - INTERVAL 2 MONTH) order by RAND()")
-		elenco_cidr = db.fetchall()
-		if not elenco_cidr:
+		db.execute("select CIDR from CIDR where CATEGORY='pbl' and LASTUPDATE < (CURRENT_TIMESTAMP() - INTERVAL 2 MONTH)  order by RAND()")
+		if not db.rowcount:
 			logit('PBL Expire: nessuna voce da controllare. Riprovo tra 24 ore')
 			db.close()
 			time.sleep(86400)
 		else:
-			for CIDR in elenco_cidr:
-				cidr_controllate += 1 # incremento il numero di voci controllate
+			for CIDR in db.fetchall():
+				cidr_controllate += 1
 				CIDR = netaddr.IPNetwork(CIDR[0])
 				ip_to_test = CIDR[dadi.randint(0, CIDR.size - 1)] # estraggo un IP a caso della CIDR
 				if not ip_gia_in_cidr(ip_to_test): # se non risulta più in PBL
