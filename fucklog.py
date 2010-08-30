@@ -195,23 +195,15 @@ def aggiorna_pbl():
 		db = connetto_db()
 		db.execute("select URL, CIDR from PBLURL where CIDR is NOT null") # Prelevo le CIDR inserite via Web
 		for row in db.fetchall():
-			IP = row[0]
-			CIDR = row[1]
-
 			try: # controllo la validità dei dati
-				assert netaddr.IPAddress(IP)
+				IP   = netaddrr.IPAddress(row[0])
+				CIDR = netaddr.IPNetwork (row[1])
 			except:
-				logit('WebPBL: IP non valido', IP)
-				db.execute("delete from PBLURL where URL=%s", (IP,))
-				continue
-			try:
-				CIDR = netaddr.IPNetwork(CIDR)
-			except:
-				logit("WebPBL: CIDR non valida", CIDR)
+				logit("WebPBL: IP/CIDR non valido", CIDR)
 				db.execute("delete from PBLURL where URL=%s", (IP,))
 				continue
 
-			if not netaddr.ip.all_matching_cidrs(netaddr.IPAddress(IP), [netaddr.IPNetwork(CIDR), ]):
+			if not netaddr.ip.all_matching_cidrs(IP, [CIDR, ]):
 				logit("WebPBL: IP/CIDR non combaciano", IP, CIDR)
 				db.execute("delete from PBLURL where URL=%s", (IP,))
 				continue
@@ -221,19 +213,6 @@ def aggiorna_pbl():
 			except:
 				logit("WebPBL: fallito inserimento", CIDR)
 			db.execute("delete from PBLURL where URL=%s", (IP,))
-
-		db.execute("select URL from PBLURL where CIDR is null") # ripeto il controllo su tutti gli IP rimasti
-		for row in db.fetchall():
-			IP = row[0]
-			try:
-				assert netaddr.IPAddress(IP)
-			except:
-				logit('WebPBL: non è un IP valido', IP)
-				db.execute("delete from PBLURL where URL=%s", (IP,))
-				continue
-			if ip_gia_in_cidr(IP):
-				logit("WebPBL: già mappato", IP)
-				db.execute("delete from PBLURL where URL=%s", (IP,))
 		db.close()
 
 def blocca_in_iptables(indirizzo_da_bloccare, bloccalo_per):
