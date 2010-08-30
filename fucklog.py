@@ -199,8 +199,8 @@ def aggiorna_pbl():
 				IP   = netaddrr.IPAddress(row[0])
 				CIDR = netaddr.IPNetwork (row[1])
 			except:
-				logit("WebPBL: IP/CIDR non valido", CIDR)
-				db.execute("delete from PBLURL where URL=%s", (IP,))
+				logit("WebPBL: IP/CIDR non valido", row[0], row[1])
+				db.execute("delete from PBLURL where URL=%s", (row[0],))
 				continue
 
 			if not netaddr.ip.all_matching_cidrs(IP, [CIDR, ]):
