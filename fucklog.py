@@ -416,6 +416,8 @@ def rimozione_ip_vecchi():
 		db.execute('delete from IP where DATE < (CURRENT_TIMESTAMP() - INTERVAL 4 MONTH)')
 		logit('RimozioneIP: rimossi', db.rowcount, 'IP')
 		db.close()
+	
+	# select count(*) as conta,cast(DATE as date) as quando from IP group by quando order by quando;
 
 def scadenza_iptables():
 	"""Rimuovo le regole di IpTables scadute"""
