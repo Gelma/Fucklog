@@ -89,7 +89,7 @@ def aggiorna_cidrarc():
 	# raccatto le eventuali whitelist disponibili in giro
 	for whitelist in [uce_dir+'ips.whitelisted.org', uce_dir+'dnswl_white_list.txt', uce_dir+'swinog-dnsrbl-whitelist', '/etc/postfix/whitelistip']:
 		if os.path.isfile(whitelist):
-			os.system('/bin/cat '+whitelist+' >> '+uce_dir+'tmp-whitelist')
+			subprocess.call(shlex.split('/bin/cat '+whitelist), stdout=open(uce_dir+'tmp-whitelist', 'a'))
 
 	file_rbl = '' # preparo gli argomenti per il cat successivo
 	for rbl in ['tmp-blacklist ','dnsbl-1.uceprotect.net ', 'dnsbl-2.uceprotect.net ', 'cbl.abuseat.org ', 'psbl.txt ', 'unsubscore.com ']:
@@ -164,21 +164,21 @@ def aggiorna_blacklist():
 			os.remove(uce_dir+'drop.lasso')
 		except:
 			pass
-		if os.system("/usr/bin/wget -q 'http://www.spamhaus.org/drop/drop.lasso' -O "+uce_dir+'drop.lasso'):
+		if subprocess.call(shlex.split("/usr/bin/wget -q 'http://www.spamhaus.org/drop/drop.lasso' -O "+uce_dir+'drop.lasso')):
 			logit('UCE: errore wget lasso')
 		
 		try:
 			os.remove(uce_dir+'antispam.imp.ch.txt')
 		except:
 			pass
-		if os.system("/usr/bin/wget -q 'http://antispam.imp.ch/spamlist' -O "+uce_dir+'antispam.imp.ch.txt'):
+		if subprocess.call(shlex.split("/usr/bin/wget -q 'http://antispam.imp.ch/spamlist' -O "+uce_dir+'antispam.imp.ch.txt')):
 			logit('UCE: errore wget antispam.imp.ch')
 
 		try:
 			os.remove(uce_dir+'swinog-dnsrbl-whitelist')
 		except:
 			pass
-		if os.system("/usr/bin/wget -q 'http://antispam.imp.ch/swinog-dnsrbl-whitelist' -O "+uce_dir+'swinog-dnsrbl-whitelist'):
+		if subprocess.call(shlex.split("/usr/bin/wget -q 'http://antispam.imp.ch/swinog-dnsrbl-whitelist' -O "+uce_dir+'swinog-dnsrbl-whitelist')):
 			logit('UCE: errore wget swinog-dnsrbl-whitelist')
 
 		uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd rsync://rsync.unsubscore.com/LBBL/blacklist.txt '+uce_dir+'unsubscore.com')
@@ -557,6 +557,8 @@ if __name__ == "__main__":
 		RegExps.append(re.compile('.*RCPT from (.*)\[(.*)\].*Relay access denied.*from=<(.*)> to=<(.*)> proto')) # rely access denied
 		RegExps.append(re.compile('.*\[postfix/smtpd\] timeout after .* from (.*)\[(.*)\]')) # timeout
 
+		NULL = open("/dev/null", "w")
+
 	if True: # controllo degli eseguibili necessari
 		for cmd in ['/usr/bin/rsync','/usr/bin/wget','./cidrmerge']:
 			if not os.path.isfile(cmd):
@@ -577,11 +579,11 @@ if __name__ == "__main__":
 
 	if True: # ripristino delle regole di IpTables
 		logit('Main: ripristino IpTables')
-		if not os.system("/sbin/iptables -L fucklog -n"): # se esiste la catena fucklog
+		if not subprocess.call(shlex.split("/sbin/iptables -L fucklog -n"), stdout=NULL): # se esiste la catena fucklog
 			subprocess.call(shlex.split("/sbin/iptables -F fucklog")) # la svuoto
 		else:
 			subprocess.call(shlex.split("/sbin/iptables -N fucklog")) # diversamente la creo
-		if os.system("/sbin/iptables -L INPUT -n|/bin/grep fucklog"): # se non esiste il jump presente
+		if(subprocess.Popen(shlex.split("/sbin/iptables -L INPUT -n"), stdout=subprocess.PIPE).stdout.read().find("fucklog") != -1): # se non esiste il jump presente
 			subprocess.call(shlex.split("/sbin/iptables -A INPUT -p tcp --dport 25 -j fucklog")) # lo creo
 		db.execute('delete from BLOCKED where END < CURRENT_TIMESTAMP()') # disintegro le regole scadute nel frattempo
 		db.execute('select IP from BLOCKED order by END') # e ripopolo
