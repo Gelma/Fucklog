@@ -196,8 +196,8 @@ def aggiorna_pbl():
 		db.execute("select URL, CIDR from PBLURL where CIDR is NOT null") # Prelevo le CIDR inserite via Web
 		for row in db.fetchall():
 			try: # controllo la validità dei dati
-				IP   = netaddrr.IPAddress(row[0])
-				CIDR = netaddr.IPNetwork (row[1])
+				IP   = netaddr.IPAddress(row[0])
+				CIDR = netaddr.IPNetwork(row[1])
 			except:
 				logit("WebPBL: IP/CIDR non valido", row[0], row[1])
 				db.execute("delete from PBLURL where URL=%s", (row[0],))
@@ -569,7 +569,7 @@ if __name__ == "__main__":
 				print "Main: probabile ci sia un'altra istanza già in esecuzione di Fucklog. Se così non fosse, elimina "+pidfile
 				sys.exit(-1)
 			else:
-				print "Mail: stale pidfile rimosso."
+				print "Main: stale pidfile rimosso."
 		file(pidfile,'w').write(str(os.getpid()))	# controllare se resta il fd aperto
 
 	logit("Main: nuovo avvio")	
