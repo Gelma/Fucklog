@@ -583,7 +583,7 @@ if __name__ == "__main__":
 			subprocess.call(shlex.split("/sbin/iptables -F fucklog")) # la svuoto
 		else:
 			subprocess.call(shlex.split("/sbin/iptables -N fucklog")) # diversamente la creo
-		if(subprocess.Popen(shlex.split("/sbin/iptables -L INPUT -n"), stdout=subprocess.PIPE).stdout.read().find("fucklog") != -1): # se non esiste il jump presente
+		if(subprocess.Popen(shlex.split("/sbin/iptables -L INPUT -n"), stdout=subprocess.PIPE).stdout.read().find("fucklog") == -1): # se non esiste il jump presente
 			subprocess.call(shlex.split("/sbin/iptables -A INPUT -p tcp --dport 25 -j fucklog")) # lo creo
 		db.execute('delete from BLOCKED where END < CURRENT_TIMESTAMP()') # disintegro le regole scadute nel frattempo
 		db.execute('select IP from BLOCKED order by END') # e ripopolo
