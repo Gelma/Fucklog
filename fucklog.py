@@ -51,7 +51,7 @@ def aggiorna_cidrarc():
 	db = connetto_db()
 
 	tmpfd=open(uce_dir+'tmp-blacklist','w') # genero elenco dei miei IP/CIDR per blacklist
-	db.execute('select INET_NTOA(IP) from IP UNION SELECT CIDR from CIDR')
+	db.execute('select INET_NTOA(IP) from IP UNION SELECT CIDR from PBL')
 	for line in db.fetchall():
 		tmpfd.write(line[0]+'\n')
 
@@ -209,7 +209,7 @@ def aggiorna_pbl():
 				continue
 
 			try: # tutto ok, quindi inserisco
-				db.execute("insert into CIDR (CIDR) values (%s)", (CIDR,))
+				db.execute("insert into PBL (CIDR) values (%s)", (CIDR,))
 			except:
 				logit("WebPBL: fallito inserimento", CIDR)
 			db.execute("delete from PBLURL where URL=%s", (IP,))
@@ -388,7 +388,7 @@ def pbl_expire():
 	while True:
 		cidr_controllate = cidr_cancellate = 0
 		db = connetto_db()
-		db.execute("select CIDR from CIDR where LASTUPDATE < (CURRENT_TIMESTAMP() - INTERVAL 2 MONTH)  order by RAND()")
+		db.execute("select CIDR from PBL where LASTUPDATE < (CURRENT_TIMESTAMP() - INTERVAL 2 MONTH)  order by RAND()")
 		if not db.rowcount:
 			logit('PBL Expire: nessuna voce da controllare. Riprovo tra 24 ore')
 			db.close()
@@ -401,9 +401,9 @@ def pbl_expire():
 				if not ip_gia_in_cidr(ip_to_test): # se non risulta più in PBL
 					cidr_cancellate += 1 # incremento le voci cancellate
 					logit('PBL Expire: elimino', CIDR, '- controllate:', cidr_controllate, '- cancellate:', cidr_cancellate)
-					db.execute("delete from CIDR where CIDR=%s", (CIDR,))
+					db.execute("delete from PBL where CIDR=%s", (CIDR,))
 				else:
-					db.execute("update CIDR set LASTUPDATE=CURRENT_TIMESTAMP where CIDR=%s", (CIDR,))
+					db.execute("update PBL set LASTUPDATE=CURRENT_TIMESTAMP where CIDR=%s", (CIDR,))
 				time.sleep(pausa_tra_le_query)
 
 def rimozione_ip_vecchi():
