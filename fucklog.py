@@ -399,6 +399,7 @@ def pbl_expire():
 
 def rimozione_ip_vecchi():
 	"""Leggo Ip->Fucklog->MySQL e rimuovo gli IP che da più di 4 mesi non spammano"""
+	# select count(*) as conta,cast(DATE as date) as quando from IP group by quando order by quando;
 
 	while True:
 		time.sleep(14400)
@@ -407,8 +408,6 @@ def rimozione_ip_vecchi():
 		db.execute('delete from IP where DATE < (CURRENT_TIMESTAMP() - INTERVAL 4 MONTH)')
 		logit('RimozioneIP: rimossi', db.rowcount, 'IP')
 		db.close()
-	
-	# select count(*) as conta,cast(DATE as date) as quando from IP group by quando order by quando;
 
 def scadenza_iptables():
 	"""Rimuovo le regole di IpTables scadute"""
@@ -463,15 +462,13 @@ def verifica_manuale_pbl(IP):
 
 if __name__ == "__main__":
 	if True: # da fare
-		# A quel punto si può rinominare in PBL la tabella CIDR. Ocio ai riferimenti in php.
 		# autopartenza di mrtg
 		# aggiornamento automatico geoip db (dovrebbe essere aggiornato una volta al mese)
 		#    primo del mese:
 		#    http://geolite.maxmind.com/download/geoip/database/GeoLiteCity.dat.gz
 		#    utilizzare una versione di geoip db locale?
 		# abbandonare MySQL in favore di sqlite?
-		# aprire i file di log/mrtg solo in lettura per root
-		# iptables sistemare output nel ripristino delle regole. vedi commit: a28c1ff6578f78c0707eff6b68fb37ced8f5de86
+		# aprire i file di log/mrtg solo in lettura/scrittura per root
 		# inserire possibilità whitelist/blacklist personalizzate
 		pass
 
