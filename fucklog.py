@@ -40,7 +40,7 @@ if True: # import dei moduli
 		pass
 
 def aggiorna_cidr():
-	"""Prendo gli IP noti che ho, insieme a un po' di blacklist, meno le whitelist, e sbatto tutto in Cidr->Fucklog-MySQL"""
+	"""Prendo gli IP noti che ho, insieme a un po' di blacklist, meno le whitelist, e sbatto tutto in Cidr->Fucklog->MySQL"""
 
 	if not lock_cidr.acquire(0):
 		logit('AggCidr: aggiornamento già in esecuzione, tralascio.')
