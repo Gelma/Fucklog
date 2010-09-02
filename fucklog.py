@@ -209,7 +209,7 @@ def aggiorna_pbl():
 				continue
 
 			try: # tutto ok, quindi inserisco
-				db.execute("insert into CIDR (CIDR, CATEGORY) values (%s,'pbl')", (CIDR,))
+				db.execute("insert into CIDR (CIDR) values (%s)", (CIDR,))
 			except:
 				logit("WebPBL: fallito inserimento", CIDR)
 			db.execute("delete from PBLURL where URL=%s", (IP,))
@@ -388,7 +388,7 @@ def pbl_expire():
 	while True:
 		cidr_controllate = cidr_cancellate = 0
 		db = connetto_db()
-		db.execute("select CIDR from CIDR where CATEGORY='pbl' and LASTUPDATE < (CURRENT_TIMESTAMP() - INTERVAL 2 MONTH)  order by RAND()")
+		db.execute("select CIDR from CIDR where LASTUPDATE < (CURRENT_TIMESTAMP() - INTERVAL 2 MONTH)  order by RAND()")
 		if not db.rowcount:
 			logit('PBL Expire: nessuna voce da controllare. Riprovo tra 24 ore')
 			db.close()
