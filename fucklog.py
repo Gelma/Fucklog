@@ -39,14 +39,14 @@ if True: # import dei moduli
 	except:
 		pass
 
-def aggiorna_cidrarc():
-	"""Prendo gli IP noti che ho, insieme a un po' di blacklist, meno le whitelist, e sbatto tutto in CidrArc->Fucklog-MySQL"""
+def aggiorna_cidr():
+	"""Prendo gli IP noti che ho, insieme a un po' di blacklist, meno le whitelist, e sbatto tutto in Cidr->Fucklog-MySQL"""
 
-	if not lock_cidrarc.acquire(0):
-		logit('AggCidrarc: aggiornamento già in esecuzione, tralascio.')
+	if not lock_cidr.acquire(0):
+		logit('AggCidr: aggiornamento già in esecuzione, tralascio.')
 		return
 
-	logit('AggCidrarc: inizio aggiornamento')
+	logit('AggCidr: inizio aggiornamento')
 	cronometro = time.time()
 	db = connetto_db()
 
@@ -104,34 +104,34 @@ def aggiorna_cidrarc():
 	os.remove(uce_dir+'tmp-whitelist') # elimino i file temporanei
 	os.remove(uce_dir+'tmp-blacklist')
 
-	db.execute('select CIDR from CIDRARC') # preparo l'elenco dei vecchi IP (li prendo da CIDRARC->Fucklog->MySQL)
+	db.execute('select CIDR from CIDR') # preparo l'elenco dei vecchi IP (li prendo da CIDR->Fucklog->MySQL)
 	lista_cidrs_vecchi = set([c[0] for c in db.fetchall()])
 
 	for cidr in lista_cidrs_nuovi - lista_cidrs_vecchi: # aggiungo i nuovi
 		try:
 			cidr = netaddr.IPNetwork(cidr)
 		except:
-			logit('CidrArc: CIDR non valida in input',cidr)
+			logit('Cidr: CIDR non valida in input',cidr)
 			continue
-		logit('AggCidrarc: aggiungo', cidr)
-		db.execute('insert into CIDRARC (CIDR, IPSTART, IPEND, SIZE) values (%s, %s, %s, %s)', (cidr, int(cidr[0]), int(cidr[-1]), cidr.size))
+		logit('AggCidr: aggiungo', cidr)
+		db.execute('insert into CIDR (CIDR, IPSTART, IPEND, SIZE) values (%s, %s, %s, %s)', (cidr, int(cidr[0]), int(cidr[-1]), cidr.size))
 	
 	for cidr in lista_cidrs_vecchi - lista_cidrs_nuovi: # cancello i vecchi
-		logit('AggCidrarc: rimuovo', cidr)
-		db.execute('delete from CIDRARC where CIDR=%s', (cidr,))
+		logit('AggCidr: rimuovo', cidr)
+		db.execute('delete from CIDR where CIDR=%s', (cidr,))
 
 	# hack per il fottuto badoo.com
 	cidr = netaddr.IPNetwork('87.245.192.0/21')
-	logit('AggCidrarc: aggiungo', cidr)
+	logit('AggCidr: aggiungo', cidr)
 	try:
-		db.execute('insert into CIDRARC (CIDR, IPSTART, IPEND, SIZE) values (%s, %s, %s, %s)', (cidr, int(cidr[0]), int(cidr[-1]), cidr.size))
+		db.execute('insert into CIDR (CIDR, IPSTART, IPEND, SIZE) values (%s, %s, %s, %s)', (cidr, int(cidr[0]), int(cidr[-1]), cidr.size))
 	except:
 		pass
 	# da eliminare appena lo segano dalla whitelist ufficiale
 
 	db.close()
-	logit('AggCidrarc: completato in', time.time() - cronometro, 'secondi')
-	lock_cidrarc.release()
+	logit('AggCidr: completato in', time.time() - cronometro, 'secondi')
+	lock_cidr.release()
 
 def aggiorna_blacklist():
 	"""Aggiorno le blacklist disponibili una volta al giorno"""
@@ -185,7 +185,7 @@ def aggiorna_blacklist():
 		if subprocess.call(uce_rsync):
 			logit('UCE: errore rsync unsubscore.com')
 
-		aggiorna_cidrarc()
+		aggiorna_cidr()
 
 def aggiorna_pbl():
 	"""Controllo le CIDR di PBL inserite via web e le attivo (PblUrl->Fucklog->MySQL)"""
@@ -252,11 +252,11 @@ def gia_in_blocco(IP):
 		return False
 
 def ip_gia_in_cidr(IP):
-	"""Ricevo un IP e torno la sua eventuale classe CIDR da CidrArc->Fucklog->Mysql"""
+	"""Ricevo un IP e torno la sua eventuale classe CIDR da Cidr->Fucklog->Mysql"""
 
 	IP = netaddr.IPAddress(IP)
 	db = connetto_db()
-	db.execute('select CIDR from CIDRARC where IPSTART <=%s and IPEND >=%s', (int(IP), int(IP)))
+	db.execute('select CIDR from CIDR where IPSTART <=%s and IPEND >=%s', (int(IP), int(IP)))
 	IP = db.fetchone()
 	db.close()
 	if IP:
@@ -321,13 +321,13 @@ def lettore():
 								if Debug: logit('Log:', IP, 'risulta la sua CIDR già in iptables', CIDR_dello_IP)
 								continue
 							else: # se non è già bloccato
-								db.execute('select COUNTER from CIDRARC where CIDR=%s', (CIDR_dello_IP,)) # ricavo fino a quando bloccarlo
+								db.execute('select COUNTER from CIDR where CIDR=%s', (CIDR_dello_IP,)) # ricavo fino a quando bloccarlo
 								if db.rowcount: # se è già noto
 									bloccalo_per = db.fetchone()[0] + 1 # incremento
 								else:
 									bloccalo_per = 1 # diversamente parto da 1
 								try: # aggiorno il contatore nel DB
-									db.execute("update CIDRARC set counter=%s where CIDR=%s", (bloccalo_per, CIDR_dello_IP))
+									db.execute("update CIDR set counter=%s where CIDR=%s", (bloccalo_per, CIDR_dello_IP))
 								except:
 									logit('Log: problema aggiornamento CIDR', CIDR_dello_IP)
 								indirizzo_da_bloccare = CIDR_dello_IP # definisco l'IP da bloccare
@@ -495,7 +495,7 @@ if __name__ == "__main__":
 			sys.exit(-1)
 		# Locks
 		lock_output_log_file = multiprocessing.Lock()
-		lock_cidrarc         = multiprocessing.Lock()
+		lock_cidr            = multiprocessing.Lock()
 		# MySQL
 		mysql_host       = configurazione.get('MySQL', 'host', 1)
 		mysql_user       = configurazione.get('MySQL', 'user', 1)
@@ -625,7 +625,7 @@ if __name__ == "__main__":
 			print "Eventualmente ricordati svuotare le regole di IpTables."
 			sys.exit()
 		if command == "a":
-			print "aggiornamento CidrArc"
-			aggiorna_cidrarc()
+			print "aggiornamento Cidr"
+			aggiorna_cidr()
 		if command == "h":
-			print "Help:\n\tq: quit\n\ta: Aggiorna CidrArc\n"
+			print "Help:\n\tq: quit\n\ta: Aggiorna Cidr\n"
