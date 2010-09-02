@@ -472,6 +472,15 @@ if __name__ == "__main__":
 		# inserire possibilità whitelist/blacklist personalizzate
 		pass
 
+	if True: # controllo funzionamento assert
+		try:
+			assert False
+		except:
+			pass
+		else:
+			print "Errore: il funzionamento degli assert è necessario. Stai utilizzando il flag -O dell'interprete?"
+			sys.exit(-1)
+
 	if True: # lettura della configurazione e definizione delle variabili globali
 		configurazione = ConfigParser.ConfigParser()
 		confp = configurazione.read(['/etc/fucklog.conf', os.path.join(os.environ["HOME"], '.fucklog.conf'), 'fucklog.conf'])
@@ -562,10 +571,9 @@ if __name__ == "__main__":
 				print "Main: stale pidfile rimosso."
 		file(pidfile,'w').write(str(os.getpid()))	# controllare se resta il fd aperto
 
-	logit("Main: nuovo avvio")	
-	db = connetto_db()
-
-	if True: # ripristino delle regole di IpTables
+	if True: # avvio e ripristino delle regole di IpTables
+		logit("Main: avvio")	
+		db = connetto_db()
 		logit('Main: ripristino IpTables')
 		if not subprocess.call(shlex.split("/sbin/iptables -L fucklog -n"), stdout=NULL): # se esiste la catena fucklog
 			subprocess.call(shlex.split("/sbin/iptables -F fucklog")) # la svuoto
