@@ -50,34 +50,38 @@ def aggiorna_cidr():
 	cronometro = time.time()
 	db = connetto_db()
 
-	tmpfd=open(uce_dir+'tmp-blacklist','w') # genero elenco dei miei IP/CIDR per blacklist
-	db.execute('select INET_NTOA(IP) from IP UNION SELECT CIDR from PBL')
-	for line in db.fetchall():
-		tmpfd.write(line[0]+'\n')
-
-	with open(uce_dir+'spamcannibal.org', 'r') as tmpfdinput: # esporto spamcannibal in CIDR
-		for line in tmpfdinput:
-			ip = line.split()[0]
-			try:
-				assert netaddr.IPGlob(ip)
-			except:
-				continue
-			for cidr in netaddr.glob_to_cidrs(ip):
-				tmpfd.write(str(cidr)+'\n')
+	tmpfd=open(uce_dir+'tmp-blacklist','w') # preparo l'output delle blacklist
 	
-	with open(uce_dir+'antispam.imp.ch.txt', 'r') as tmpfdinput: # estraggo IP da antispam.imp.ch.txt
-		for line in tmpfdinput:
-			try: # provo a prendere il secondo elemento di ogni riga
-				ip = line.split()[1]
-			except:
-				continue
-			if ip == '0.0.0.0': # elimino il temibile 0.0.0.0
-				continue
-			try:
-				assert netaddr.IPAddres(ip)
-			except:
-				continue
-			tmpfd.write(str(ip)+'\n')
+	if os.path.isfile(uce_dir+'tmp-blacklist'): # genero elenco dei miei IP/CIDR per blacklist
+		db.execute('select INET_NTOA(IP) from IP UNION SELECT CIDR from PBL')
+		for line in db.fetchall():
+			tmpfd.write(line[0]+'\n')
+
+	if os.path.isfile(uce_dir+'spamcannibal.org'):
+		with open(uce_dir+'spamcannibal.org', 'r') as tmpfdinput: # esporto spamcannibal in CIDR
+			for line in tmpfdinput:
+				ip = line.split()[0]
+				try:
+					assert netaddr.IPGlob(ip)
+				except:
+					continue
+				for cidr in netaddr.glob_to_cidrs(ip):
+					tmpfd.write(str(cidr)+'\n')
+	
+	if os.path.isfile(uce_dir+'antispam.imp.ch.txt'):
+		with open(uce_dir+'antispam.imp.ch.txt', 'r') as tmpfdinput: # estraggo IP da antispam.imp.ch.txt
+			for line in tmpfdinput:
+				try: # provo a prendere il secondo elemento di ogni riga
+					ip = line.split()[1]
+				except:
+					continue
+				if ip == '0.0.0.0': # elimino il temibile 0.0.0.0
+					continue
+				try:
+					assert netaddr.IPAddres(ip)
+				except:
+					continue
+				tmpfd.write(str(ip)+'\n')
 
 	tmpfd.close() # chiudo tmp-blacklist
 
