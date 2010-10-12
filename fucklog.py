@@ -3,16 +3,7 @@
 
 if True: # import dei moduli
 	try: # quelli builtin
-		import ConfigParser
-		import datetime
-		import multiprocessing
-		import os
-		import random
-		import re
-		import shlex
-		import subprocess
-		import sys
-		import time
+		import ConfigParser, datetime ,multiprocessing ,os ,random ,re ,shlex ,subprocess ,sys ,time, urllib
 	except:
 		import sys
 		print "Errore nell'import dei moduli standard. Versione troppo vecchia dell'interprete?"
