@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #-----------------------------------------------------------------------------
-#   Copyright (c) 2008-2009, David P. D. Moss. All rights reserved.
+#   Copyright (c) 2008-2010, David P. D. Moss. All rights reserved.
 #
 #   Released under the BSD license. See the LICENSE file for details.
 #-----------------------------------------------------------------------------
@@ -33,10 +33,11 @@ More details can be found at the following URLs :-
 """
 
 import os as _os
+import sys as _sys
 import os.path as _path
 import csv as _csv
 
-from netaddr.core import Subscriber, Publisher
+from netaddr.core import Subscriber, Publisher, dos2unix
 
 #-----------------------------------------------------------------------------
 
@@ -60,7 +61,8 @@ IAB_INDEX = {}
 #-----------------------------------------------------------------------------
 class FileIndexer(Subscriber):
     """
-    A concrete Subscriber that receives OUI record offset information that is written to an index data file as a set of comma separated records.
+    A concrete Subscriber that receives OUI record offset information that is
+    written to an index data file as a set of comma separated records.
     """
     def __init__(self, index_file):
         """
@@ -119,7 +121,7 @@ class OUIIndexParser(Publisher):
         if hasattr(ieee_file, 'readline') and hasattr(ieee_file, 'tell'):
             self.fh = ieee_file
         else:
-            self.fh = open(ieee_file, 'rb')
+            self.fh = open(ieee_file)
 
     def parse(self):
         """
@@ -198,7 +200,7 @@ class IABIndexParser(Publisher):
         if hasattr(ieee_file, 'readline') and hasattr(ieee_file, 'tell'):
             self.fh = ieee_file
         else:
-            self.fh = open(ieee_file, 'rb')
+            self.fh = open(ieee_file)
 
     def parse(self):
         """
@@ -248,7 +250,7 @@ class IABIndexParser(Publisher):
         self.notify(record)
 
 #-----------------------------------------------------------------------------
-def create_ieee_indices():
+def create_indices():
     """Create indices for OUI and IAB file based lookups"""
     oui_parser = OUIIndexParser(OUI_REGISTRY)
     oui_parser.attach(FileIndexer(OUI_METADATA))
@@ -259,7 +261,7 @@ def create_ieee_indices():
     iab_parser.parse()
 
 #-----------------------------------------------------------------------------
-def load_ieee_indices():
+def load_indices():
     """Load OUI and IAB lookup indices into memory"""
     for row in _csv.reader(open(OUI_METADATA)):
         (key, offset, size) = [int(_) for _ in row]
@@ -274,7 +276,12 @@ def load_ieee_indices():
 #-----------------------------------------------------------------------------
 def get_latest_files():
     """Download the latest files from the IEEE"""
-    import urllib2
+    if _sys.version_info[0] == 3:
+        #   Python 3.x
+        from urllib.request import Request, urlopen
+    else:
+        #   Python 2.x
+        from urllib2 import Request, urlopen
 
     urls = [
         'http://standards.ieee.org/regauth/oui/oui.txt',
@@ -282,21 +289,24 @@ def get_latest_files():
     ]
 
     for url in urls:
-        print 'downloading latest copy of %s' % url
-        request = urllib2.Request(url)
-        response = urllib2.urlopen(request)
+        _sys.stdout.write('downloading latest copy of %s\n' % url)
+        request = Request(url)
+        response = urlopen(request)
         save_path = _path.dirname(__file__)
         filename = _path.join(save_path, _os.path.basename(response.geturl()))
-        fh = open(filename, 'wb')
+        fh = open(filename, 'w')
         fh.write(response.read())
         fh.close()
+
+        #   Make sure the line endings are consistent across platforms.
+        dos2unix(filename)
 
 #-----------------------------------------------------------------------------
 if __name__ == '__main__':
     #   Generate indices when module is executed as a script.
     get_latest_files()
-    create_ieee_indices()
+    create_indices()
+else:
+    #   On module load read indices in memory to enable lookups.
+    load_indices()
 
-
-#   On module load read indices in memory to enable lookups.
-load_ieee_indices()

@@ -1,5 +1,5 @@
 #-----------------------------------------------------------------------------
-#   Copyright (c) 2008-2009, David P. D. Moss. All rights reserved.
+#   Copyright (c) 2008-2010, David P. D. Moss. All rights reserved.
 #
 #   Released under the BSD license. See the LICENSE file for details.
 #-----------------------------------------------------------------------------
@@ -9,8 +9,19 @@ import sys as _sys
 import struct as _struct
 import pprint as _pprint
 
+from netaddr.compat import _callable, _iter_dict_keys
+
 #: True if platform is natively big endian, False otherwise.
 BIG_ENDIAN_PLATFORM = _sys.byteorder == 'big'
+
+#:  Use inet_pton() semantics instead of inet_aton() when parsing IPv4.
+P = INET_PTON = 1
+
+#:  Remove any preceding zeros from IPv4 address octets before parsing.
+Z = ZEROFILL = 2
+
+#:  Remove any host bits found to the right of an applied CIDR prefix.
+N = NOHOST = 4
 
 #-----------------------------------------------------------------------------
 #   Custom exceptions.
@@ -118,7 +129,7 @@ class Publisher(object):
             interface.
         """
         if hasattr(subscriber, 'update') and \
-           callable(eval('subscriber.update')):
+           _callable(eval('subscriber.update')):
             if subscriber not in self.subscribers:
                 self.subscribers.append(subscriber)
         else:
@@ -176,8 +187,25 @@ class DictDotLookup(object):
             return self.__dict__[name]
 
     def __iter__(self):
-        return iter(self.__dict__.keys())
+        return _iter_dict_keys(self.__dict__)
 
     def __repr__(self):
         return _pprint.pformat(self.__dict__)
 
+#-----------------------------------------------------------------------------
+def dos2unix(filename):
+    """
+    Replace DOS line endings (CRLF) with UNIX line endings (LF) in file.
+
+    """
+    data = open(filename, "rb").read()
+    data.close()
+
+    if '\0' in data:
+        raise ValueError('file contains binary data: %s!' % filename)
+
+    newdata = data.replace("\r\n".encode(), "\n".encode())
+    if newdata != data:
+        f = open(filename, "wb")
+        f.write(newdata)
+        f.close()

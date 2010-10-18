@@ -1,5 +1,5 @@
 #-----------------------------------------------------------------------------
-#   Copyright (c) 2008-2009, David P. D. Moss. All rights reserved.
+#   Copyright (c) 2008-2010, David P. D. Moss. All rights reserved.
 #
 #   Released under the BSD license. See the LICENSE file for details.
 #-----------------------------------------------------------------------------
@@ -7,6 +7,8 @@
 
 from netaddr.core import AddrFormatError
 from netaddr.ip import IPAddress
+
+from netaddr.compat import _zip
 
 #-----------------------------------------------------------------------------
 def chr_range(low, high):
@@ -19,7 +21,7 @@ BASE_85 = chr_range('0', '9') + chr_range('A', 'Z') + chr_range('a', 'z') + \
      '?', '@', '^', '_','`', '{', '|', '}', '~']
 
 #: Base 85 digit to integer lookup table.
-BASE_85_DICT = dict(zip(BASE_85, range(0, 86)))
+BASE_85_DICT = dict(_zip(BASE_85, range(0, 86)))
 
 #-----------------------------------------------------------------------------
 def ipv6_to_base85(addr):
@@ -30,9 +32,8 @@ def ipv6_to_base85(addr):
     remainder = []
     while int_val > 0:
         remainder.append(int_val % 85)
-        int_val /= 85
+        int_val //= 85
 
-    #print '-'.join([str(w) for w in reversed(remainder)])
     return ''.join([BASE_85[w] for w in reversed(remainder)])
 
 #-----------------------------------------------------------------------------

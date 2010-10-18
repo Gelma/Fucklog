@@ -1,32 +1,36 @@
 #-----------------------------------------------------------------------------
-#   Copyright (c) 2008-2009, David P. D. Moss. All rights reserved.
+#   Copyright (c) 2008-2010, David P. D. Moss. All rights reserved.
 #
 #   Released under the BSD license. See the LICENSE file for details.
 #-----------------------------------------------------------------------------
-"""
-IPv4 address logic.
-"""
-import struct as _struct
-import platform as _platform
+"""IPv4 address logic."""
 
-OPT_IMPORTS = False
+import sys as _sys
+import struct as _struct
+import socket as _socket
 
 #   Check whether we need to use fallback code or not.
-try:
-    import socket as _socket
-    #   Check for a common bug on Windows and socket modules on some other
-    #   platforms.
-    _socket.inet_aton('255.255.255.255')
-    from _socket import inet_aton as _inet_aton, \
-                        inet_ntoa as _inet_ntoa, \
-                        AF_INET
-    OPT_IMPORTS = True
-except:
-    from netaddr.fbsocket import inet_aton as _inet_aton, \
-                                 inet_ntoa as _inet_ntoa, \
-                                 AF_INET
+if _sys.platform in ('win32', 'cygwin'):
+    #   inet_pton() not available on Windows. inet_pton() under cygwin
+    #   behaves exactly like inet_aton() and is therefore highly unreliable.
+    from _socket import inet_aton as _inet_aton, inet_ntoa as _inet_ntoa
+    from netaddr.fbsocket import inet_pton as _inet_pton, AF_INET
+else:
+    #   All other cases, attempt to use all functions from the socket module.
+    try:
+        #   A common bug on older implementations of the socket module.
+        _socket.inet_aton('255.255.255.255')
 
-from netaddr.core import AddrFormatError
+        from _socket import inet_aton as _inet_aton, inet_ntoa as _inet_ntoa, \
+                            inet_pton as _inet_pton, AF_INET
+    except:
+        #   Use the fallback socket code.
+        from netaddr.fbsocket import inet_aton as _inet_aton, \
+                                     inet_ntoa as _inet_ntoa, \
+                                     inet_pton as _inet_pton, AF_INET
+
+from netaddr.core import AddrFormatError, ZEROFILL, INET_PTON
+
 from netaddr.strategy import valid_words  as _valid_words, \
     valid_bits   as _valid_bits, \
     bits_to_int  as _bits_to_int, \
@@ -34,6 +38,8 @@ from netaddr.strategy import valid_words  as _valid_words, \
     valid_bin    as _valid_bin, \
     int_to_bin   as _int_to_bin, \
     bin_to_int   as _bin_to_int
+
+from netaddr.compat import _str_type
 
 #: The width (in bits) of this address type.
 width = 32
@@ -63,46 +69,77 @@ word_base = 10
 max_int = 2 ** width - 1
 
 #: The number of words in this address type.
-num_words = width / word_size
+num_words = width // word_size
 
 #: The maximum integer value for an individual word in this address type.
 max_word = 2 ** word_size - 1
 
+#: A dictionary mapping IPv4 CIDR prefixes to the equivalent netmasks.
+prefix_to_netmask = dict(
+    [(i, max_int ^ (2 ** (width - i) - 1)) for i in range(0, width+1)])
+
+#: A dictionary mapping IPv4 netmasks to their equivalent CIDR prefixes.
+netmask_to_prefix = dict(
+    [(max_int ^ (2 ** (width - i) - 1), i) for i in range(0, width+1)])
+
+#: A dictionary mapping IPv4 CIDR prefixes to the equivalent hostmasks.
+prefix_to_hostmask = dict(
+    [(i, (2 ** (width - i) - 1)) for i in range(0, width+1)])
+
+#: A dictionary mapping IPv4 hostmasks to their equivalent CIDR prefixes.
+hostmask_to_prefix = dict(
+    [((2 ** (width - i) - 1), i) for i in range(0, width+1)])
+
 #-----------------------------------------------------------------------------
-def valid_str(addr):
+def valid_str(addr, flags=0):
     """
     @param addr: An IPv4 address in presentation (string) format.
+
+    @param flags: decides which rules are applied to the interpretation of the
+        addr value. Supported constants are INET_PTON and ZEROFILL. See the
+        netaddr.core docs for details.
 
     @return: C{True} if IPv4 address is valid, C{False} otherwise.
     """
     if addr == '':
         raise AddrFormatError('Empty strings are not supported!')
 
+    validity = True
+
+    if flags & ZEROFILL:
+        addr = '.'.join(['%d' % int(i) for i in addr.split('.')])
+
     try:
-        _inet_aton(addr)
+        if flags & INET_PTON:
+            _inet_pton(AF_INET, addr)
+        else:
+            _inet_aton(addr)
     except:
-        return False
-    return True
+        validity = False
+
+    return validity
 
 #-----------------------------------------------------------------------------
-def str_to_int(addr):
+def str_to_int(addr, flags=0):
     """
     @param addr: An IPv4 dotted decimal address in string form.
 
+    @param flags: decides which rules are applied to the interpretation of the
+        addr value. Supported constants are INET_PTON and ZEROFILL. See the
+        netaddr.core docs for details.
+
     @return: The equivalent unsigned integer for a given IPv4 address.
     """
-    if addr == '':
-        raise AddrFormatError('Empty strings are not supported!')
-    try:
-        return _struct.unpack('>I', _inet_aton(addr))[0]
-    except:
-        #   Windows platform workaround.
-        if hasattr(addr, 'lower') and _platform.system() == 'Windows':
-            if addr.lower() == '0xffffffff':
-                return 0xffffffff
+    if flags & ZEROFILL:
+        addr = '.'.join(['%d' % int(i) for i in addr.split('.')])
 
-        raise AddrFormatError('%r is not a valid IPv4 address string!' \
-            % addr)
+    try:
+        if flags & INET_PTON:
+            return _struct.unpack('>I', _inet_pton(AF_INET, addr))[0]
+        else:
+            return _struct.unpack('>I', _inet_aton(addr))[0]
+    except:
+        raise AddrFormatError('%r is not a valid IPv4 address string!' % addr)
 
 #-----------------------------------------------------------------------------
 def int_to_str(int_val, dialect=None):
@@ -115,7 +152,11 @@ def int_to_str(int_val, dialect=None):
         unsigned integer provided.
     """
     if 0 <= int_val <= max_int:
-        return _inet_ntoa(_struct.pack('>I', int_val))
+        return '%d.%d.%d.%d' % (
+             int_val >> 24,
+            (int_val >> 16) & 0xff,
+            (int_val >>  8) & 0xff,
+             int_val & 0xff)
     else:
         raise ValueError('%r is not a valid 32-bit unsigned integer!' \
             % int_val)
@@ -169,10 +210,10 @@ def int_to_words(int_val):
     if not 0 <= int_val <= max_int:
         raise ValueError('%r is not a valid integer value supported ' \
             'by this address type!' % int_val)
-    return ( (int_val >> 24),
-             (int_val >> 16 & 255),
-             (int_val >> 8 & 255),
-             (int_val & 255) )
+    return ( int_val >> 24,
+            (int_val >> 16) & 0xff,
+            (int_val >>  8) & 0xff,
+             int_val & 0xff)
 
 #-----------------------------------------------------------------------------
 def words_to_int(words):
@@ -212,3 +253,42 @@ def int_to_bin(int_val):
 #-----------------------------------------------------------------------------
 def bin_to_int(bin_val):
     return _bin_to_int(bin_val, width)
+
+#-----------------------------------------------------------------------------
+def expand_partial_address(addr):
+    """
+    Expands a partial IPv4 address into a full 4-octet version.
+
+    @param addr: an partial or abbreviated IPv4 address
+
+    @return: an expanded IP address in presentation format (x.x.x.x)
+
+    """
+    tokens = []
+
+    error = AddrFormatError('invalid partial IPv4 address: %r!' % addr)
+
+    if isinstance(addr, _str_type):
+        if ':' in addr:
+            #   Ignore IPv6 ...
+            raise error
+
+        if '.' in addr:
+            tokens = ['%d' % int(o) for o in addr.split('.')]
+        else:
+            try:
+                tokens = ['%d' % int(addr)]
+            except ValueError:
+                raise error
+
+        if 1 <= len(tokens) <= 4:
+            for i in range(4 - len(tokens)):
+                tokens.append('0')
+        else:
+            raise error
+
+    if not tokens:
+        raise error
+
+    return '%s.%s.%s.%s' % tuple(tokens)
+

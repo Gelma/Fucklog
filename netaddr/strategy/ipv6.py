@@ -1,5 +1,5 @@
 #-----------------------------------------------------------------------------
-#   Copyright (c) 2008-2009, David P. D. Moss. All rights reserved.
+#   Copyright (c) 2008-2010, David P. D. Moss. All rights reserved.
 #
 #   Released under the BSD license. See the LICENSE file for details.
 #-----------------------------------------------------------------------------
@@ -64,10 +64,26 @@ word_base = 16
 max_int = 2 ** width - 1
 
 #: The number of words in this address type.
-num_words = width / word_size
+num_words = width // word_size
 
 #: The maximum integer value for an individual word in this address type.
 max_word = 2 ** word_size - 1
+
+#: A dictionary mapping IPv6 CIDR prefixes to the equivalent netmasks.
+prefix_to_netmask = dict(
+    [(i, max_int ^ (2 ** (width - i) - 1)) for i in range(0, width+1)])
+
+#: A dictionary mapping IPv6 netmasks to their equivalent CIDR prefixes.
+netmask_to_prefix = dict(
+    [(max_int ^ (2 ** (width - i) - 1), i) for i in range(0, width+1)])
+
+#: A dictionary mapping IPv6 CIDR prefixes to the equivalent hostmasks.
+prefix_to_hostmask = dict(
+    [(i, (2 ** (width - i) - 1)) for i in range(0, width+1)])
+
+#: A dictionary mapping IPv6 hostmasks to their equivalent CIDR prefixes.
+hostmask_to_prefix = dict(
+    [((2 ** (width - i) - 1), i) for i in range(0, width+1)])
 
 #-----------------------------------------------------------------------------
 #   Dialect classes.
@@ -97,9 +113,12 @@ class ipv6_verbose(ipv6_compact):
     compact = False
 
 #-----------------------------------------------------------------------------
-def valid_str(addr):
+def valid_str(addr, flags=0):
     """
     @param addr: An IPv6 address in presentation (string) format.
+
+    @param flags: decides which rules are applied to the interpretation of the
+        addr value. Future use - currently has no effect.
 
     @return: C{True} if IPv6 address is valid, C{False} otherwise.
     """
@@ -113,20 +132,20 @@ def valid_str(addr):
     return True
 
 #-----------------------------------------------------------------------------
-def str_to_int(addr):
+def str_to_int(addr, flags=0):
     """
     @param addr: An IPv6 address in string form.
 
+    @param flags: decides which rules are applied to the interpretation of the
+        addr value. Future use - currently has no effect.
+
     @return: The equivalent unsigned integer for a given IPv6 address.
     """
-    if addr == '':
-        raise AddrFormatError('Empty strings are not supported!')
     try:
         packed_int = _inet_pton(AF_INET6, addr)
         return packed_to_int(packed_int)
     except Exception:
-        raise AddrFormatError('%r is not a valid IPv6 address string!' \
-            % addr)
+        raise AddrFormatError('%r is not a valid IPv6 address string!' % addr)
 
 #-----------------------------------------------------------------------------
 def int_to_str(int_val, dialect=None):

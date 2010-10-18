@@ -1,7 +1,7 @@
 
 Internet Multicast Addresses
 
-(last updated 2009-11-11)
+(last updated 2009-08-12)
 
 Registries included below:
 - IPv4 Multicast Addresses
@@ -282,12 +282,11 @@ Registry:
 
 224.0.2.0 - 224.0.255.0   AD-HOC Block
 --------------------------------------
-224.0.2.0 Unassigned
-224.0.2.1 "rwho" Group (BSD) (unofficial)                    [JBP]
-224.0.2.2 SUN RPC PMAPPROC_CALLIT                           [BXE1]
-224.0.2.3 EPSON-disc-set                        [SEIKO EPSON Corp]
-224.0.2.4 All C1222 Nodes          [draft-c1222-transport-over-ip]  28 August 2009
-224.0.2.5-224.0.2.063 Unassigned
+224.0.2.0  Unassigned
+224.0.2.1  "rwho" Group (BSD) (unofficial)                   [JBP]
+224.0.2.2  SUN RPC PMAPPROC_CALLIT                          [BXE1]
+224.0.2.3  EPSON-disc-set                       [SEIKO EPSON Corp]
+224.0.2.4-224.0.2.063 Unassigned
 224.0.2.064-224.0.2.095 Amex MDD Service                   [Madry]  April 1996, July 2007 - modified
 224.0.2.096-224.0.2.127 BallisterNet                   [Ballister]
 224.0.2.128-224.0.2.191 WOZ-Garage                     [Marquardt]
@@ -298,8 +297,7 @@ Registry:
 224.0.5.128-224.0.5.191 SIAC Market Service                  [Cho]
 224.0.5.192-224.0.5.255 SIAC NYSE Order PDP protocol        [Chan]
 224.0.6.000-224.0.6.127 Cornell ISIS Project           [Tim Clark]
-224.0.6.128-224.0.6.143 MoeSingh                           [Singh]  24 September 2009
-224.0.6.144-224.0.6.255 Unassigned                          [IANA]
+224.0.6.128-224.0.6.255 Unassigned                          [IANA]
 224.0.7.000-224.0.7.255 Where-Are-You                    [Simpson]
 224.0.8.000-224.0.8.255 INTV                               [Tynan]
 224.0.9.000-224.0.9.255 Invisible Worlds                 [Malamud]
@@ -384,9 +382,7 @@ Registry:
 224.0.23.167 Systech Mcast                              [Jakubiec]  21 September 2006
 224.0.23.168 tricon-system-management                     [Gabler]  06 July 2007
 224.0.23.169 MNET discovery                                [Crick]  14 January 2008
-224.0.23.170 CCNx (not for global routing)              [S.Barber]  24 September 2009
-224.0.23.171 LLAFP                                        [M.Lyle]  11 November 2009
-224.0.23.172-224.0.23.191 Unassigned
+224.0.23.170-224.0.23.191 Unassigned
 224.0.23.192-224.0.23.255 PINKOTC                        [Shulgin]  12 August 2008
 224.0.24.0-224.0.24.127 AGSC UK VVs                       [Rowley]  09 June 2006
 224.0.24.128-224.0.24.255 EM-MULTI                      [Sorensen]  07 August 2006
@@ -408,10 +404,7 @@ Registry:
 224.0.64.0-224.0.67.255 NYSE Euronext                     [Gupta2]  13 March 2009
 224.0.68.0-224.0.69.255 ISE                               [Albert]  12 May 2009
 224.0.70.0-224.0.71.255 NYSE-AB-UTP                      [Serrano]  16 June 2009
-224.0.72.0-224.0.72.255 TMX                    [Caravetta][Garber]  28 August 2009
-224.0.73.0-224.0.74.255 Direct Edge                       [Landin]  28 August 2009
-224.0.75.0-224.0.249.255 Unassigned
-224.0.250.0-224.0.251.255 KPN Broadcast Services           [Spelt]  01 September 2009
+224.0.72.0-224.0.251.255  Unassigned
 224.0.252.0-224.0.252.255 KPN Broadcast Services           [Spelt] 
 224.0.253.000-224.0.253.255 KPN Broadcast Services         [Spelt]              
 224.0.254.000-224.0.254.255 Intelsat IPTV                   [Elad]  31 March 2006
@@ -591,8 +584,6 @@ References
 [RFC5415]  P. Calhoun, Ed., M. Montemurro, Ed., D. Stanley, Ed., "CAPWAP 
            Protocol Specification", RFC 5415, March 2009.
 
-[draft-c1222-transport-over-ip] work in progress
-
 People
 ------
 [Aboba] Bernard Aboba, <bernarda&windows.microsoft.com>, May 2004.
@@ -629,8 +620,6 @@ People
 
 [Barber] Tony Barber, <tony.barber&wcom.com>, January 1997.
 
-[S.Barber] Simon Barber, <simon.barber&parc.com>, 24 September 2009.
-
 [Barendt] Nick Barendt, <nbarendt&vxitech.com>, November 2005.
 
 [Beddoe] Wally Beddoe, <WBeddoe&tkusa.com>, April 2003.
@@ -665,8 +654,6 @@ People
 [BXF] Bruce Factor, <ahi!bigapple!bruce&uunet.UU.NET>
 
 [BXS2] Bill Schilit, <schilit&parc.xerox.com>
-
-[Caravetta] Michael Caravetta, <Michael.Caravetta&tsx.com>, 01 September 2009.
 
 [Carr] Wayne Carr, <Wayne_Carr&ccm.intel.com>, December 1997.
 
@@ -750,8 +737,6 @@ People
 [Gaddie] Bob Gaddie, <bobg&dtn.com>, August 1998.
 
 [Gal] Yossi Gal, <yossi&gilat.com>, February 1998.
-
-[Garber] Boris Garber, <Boris.Garber&tsx.com>, 28 August 2009.
 
 [Gibson] Terry Gibson, <terry.gibson&sun.com>, August 1997.
 
@@ -845,8 +830,6 @@ January 1997.
 
 [Lamberg] Mike Lamberg, <mlamberg&siac.com>, February 1997.
 
-[Landin] Javier Landin, <jlandin&directedge.com>, 28 August 2009.
-
 [A.Lee] Alex Lee, <alex_mrlee&gemtek.com.tw>, October 2002.
 
 [Lee] Choon Lee, <cwl&nsd.3com.com>, April 1996.
@@ -864,8 +847,6 @@ January 1997.
 [Lyda] Stephen T. Lyda, <slyda&emsg.com>, February 2000.
 
 [Lyle] Jim Lyle, <jim.lyle&siliconimage.com>, 07 August 2006.
-
-[M.Lyle] Michael Lyle, <protocols&translattice.com>, 11 November 2009.
 
 [Lynch] Joel Lynch, <joel.lynch&cnn.com>, April 1999.
 
@@ -1006,8 +987,6 @@ for temp use: renew 06/2000
 
 [Simpson] Bill Simpson, <bill.simpson&um.cc.umich.edu> November 1994.
 
-[Singh] Moe Singh, <moesingh&hotmail.com>, 24 September 2009.
-
 [Sledge] Bob Sledge, <bob&pqsystems.com>, December 1998.
 
 [Sliwinski] Robert Sliwinski, <sliwinre&mail1st.com>, February 2000.
@@ -1016,7 +995,7 @@ for temp use: renew 06/2000
 
 [Sorensen] Soren Martin Sorensen, <sms&energimidt.dk>, 07 August 2006.
 
-[Spelt]  Ad C. Spelt, <a.c.spelt&kpn.com>, August 2005, 01 September 2009.
+[Spelt]  Ad C. Spelt, <a.c.spelt&kpn.com>, August 2005.
 
 [Stanev] Nedelcho Stanev, <nstanev&csoft.bg>, May 1999.
 

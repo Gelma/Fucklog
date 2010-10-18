@@ -1,19 +1,22 @@
 #-----------------------------------------------------------------------------
-#   Copyright (c) 2008-2009, David P. D. Moss. All rights reserved.
+#   Copyright (c) 2008-2010, David P. D. Moss. All rights reserved.
 #
 #   Released under the BSD license. See the LICENSE file for details.
 #-----------------------------------------------------------------------------
 """A Python library for manipulating IP and EUI network addresses."""
+
+#: Version info (major, minor, maintenance, status)
+VERSION = (0, 7, 5)
+STATUS = ''
+__version__ = '%d.%d.%d' % VERSION[0:3] + STATUS
 
 import sys as _sys
 
 if _sys.version_info[0:2] < (2, 4):
     raise RuntimeError('Python 2.4.x or higher is required!')
 
-__version__ = '0.7.4'
-
 from netaddr.core import AddrConversionError, AddrFormatError, \
-    NotRegisteredError
+    NotRegisteredError, ZEROFILL, Z, INET_PTON, P, NOHOST, N
 
 from netaddr.ip import IPAddress, IPNetwork, IPRange, all_matching_cidrs, \
     cidr_abbrev_to_verbose, cidr_exclude, cidr_merge, iprange_to_cidrs, \
@@ -40,6 +43,9 @@ from netaddr.strategy.eui48 import mac_eui48, mac_unix, mac_cisco, \
     mac_bare, mac_pgsql, valid_str as valid_mac
 
 __all__ = [
+    #   Constants.
+    'ZEROFILL', 'Z', 'INET_PTON', 'P', 'NOHOST', 'N',
+
     #   Custom Exceptions.
     'AddrConversionError', 'AddrFormatError', 'NotRegisteredError',
 

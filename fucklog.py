@@ -16,7 +16,7 @@ if True: # import dei moduli
 		sys.exit(-1)
 	
 	try: # quelli inclusi in Fucklog
-		import netaddr          # Versione 0.7.4
+		import netaddr          # Versione 0.7.5
 		import pygeoip          # Versione 0.1.3
 		import dns.resolver     # Versione 1.8.0 di DnsPython.org
 		import dns.reversename  # Versione 1.8.0 di DnsPython.org
