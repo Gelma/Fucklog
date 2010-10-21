@@ -576,9 +576,9 @@ if __name__ == "__main__":
 		for opt, a in opts:
 			if opt in ('-e', '--evita-ripristino-iptables'):
 				evita_ripristino_iptables = True
-		if evita_ripristino_iptables is False:
 			logit("Main: avvio")	
 			db = connetto_db()
+		if evita_ripristino_iptables is False:
 			logit('Main: ripristino IpTables')
 			if not subprocess.call(shlex.split("/sbin/iptables -L fucklog -n"), stdout=NULL): # se esiste la catena fucklog
 				subprocess.call(shlex.split("/sbin/iptables -F fucklog")) # la svuoto
