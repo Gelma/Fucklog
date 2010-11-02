@@ -209,7 +209,10 @@ def blocca_in_iptables(indirizzo_da_bloccare, bloccalo_per):
 		logit('BloccaIpTables: errore IpTables', indirizzo_da_bloccare)
 	else:
 		db = connetto_db()
-		db.execute("insert into BLOCKED (IP, END) values (%s, %s)", (indirizzo_da_bloccare, fino_al_timestamp))
+		try:
+			db.execute("insert into BLOCKED (IP, END) values (%s, %s)", (indirizzo_da_bloccare, fino_al_timestamp))
+		except:
+			logit('blocca_in_iptables: fallito inserimento', indirizzo_da_bloccare)
 		db.close()
 
 def connetto_db():
