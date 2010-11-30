@@ -57,7 +57,7 @@ def aggiorna_cidr():
 				except:
 					continue
 				for cidr in netaddr.glob_to_cidrs(ip):
-					tmpfd.write(str(cidr)+'\n')
+					tmpfd.write('%s\n' % cidr)
 	
 	if os.path.isfile(uce_dir+'antispam.imp.ch.txt'):
 		with open(uce_dir+'antispam.imp.ch.txt', 'r') as tmpfdinput: # estraggo IP da antispam.imp.ch.txt
@@ -72,7 +72,7 @@ def aggiorna_cidr():
 					netaddr.IPAddres(ip)
 				except:
 					continue
-				tmpfd.write(str(ip)+'\n')
+				tmpfd.write('%s\n' % ip)
 
 	tmpfd.close() # chiudo tmp-blacklist
 
@@ -352,7 +352,7 @@ def logit(*args):
 		linea_log += ' '.join(args)
 	except: # desumo che siano presenti argomenti non testuali
 		for item in args:
-			linea_log += ' ' + str(item)
+			linea_log += ' %s' % item
 
 	lock_output_log_file.acquire()
 	log_file.write(linea_log + '\n')
