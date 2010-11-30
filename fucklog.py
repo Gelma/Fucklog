@@ -53,7 +53,7 @@ def aggiorna_cidr():
 			for line in tmpfdinput:
 				ip = line.split()[0]
 				try:
-					assert netaddr.IPGlob(ip)
+					netaddr.IPGlob(ip)
 				except:
 					continue
 				for cidr in netaddr.glob_to_cidrs(ip):
@@ -69,7 +69,7 @@ def aggiorna_cidr():
 				if ip == '0.0.0.0': # elimino il temibile 0.0.0.0
 					continue
 				try:
-					assert netaddr.IPAddres(ip)
+					netaddr.IPAddres(ip)
 				except:
 					continue
 				tmpfd.write(str(ip)+'\n')
@@ -469,15 +469,6 @@ if __name__ == "__main__":
 		# aprire i file di log/mrtg solo in lettura/scrittura per root
 		# inserire possibilità whitelist/blacklist personalizzate
 		pass
-
-	if True: # controllo funzionamento assert
-		try:
-			assert False
-		except:
-			pass
-		else:
-			print "Errore: il funzionamento degli assert è necessario. Stai utilizzando il flag -O dell'interprete?"
-			sys.exit(-1)
 
 	if True: # lettura della configurazione e definizione delle variabili globali
 		configurazione = ConfigParser.ConfigParser()
