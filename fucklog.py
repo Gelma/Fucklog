@@ -20,6 +20,7 @@ if True: # import dei moduli
 		import pygeoip          # Versione 0.1.3
 		import dns.resolver     # Versione 1.8.0 di DnsPython.org
 		import dns.reversename  # Versione 1.8.0 di DnsPython.org
+		import pblob
 	except:
 		print "Errore nell'import dei moduli specifici di Fucklog."
 		sys.exit(-1)
@@ -173,34 +174,6 @@ def aggiorna_blacklist():
 
 		aggiorna_cidr()
 
-def aggiorna_pbl():
-	"""Controllo le CIDR di PBL inserite via web e le attivo (PblUrl->Fucklog->MySQL)"""
-
-	while True:
-		time.sleep(1800)
-		db = connetto_db()
-		db.execute("select URL, CIDR from PBLURL where CIDR is NOT null") # Prelevo le CIDR inserite via Web
-		for row in db.fetchall():
-			try: # controllo la validità dei dati
-				IP   = netaddr.IPAddress(row[0])
-				CIDR = netaddr.IPNetwork(row[1])
-			except:
-				logit("WebPBL: IP/CIDR non valido", row[0], row[1])
-				db.execute("delete from PBLURL where URL=%s", (row[0],))
-				continue
-
-			if not netaddr.ip.all_matching_cidrs(IP, [CIDR, ]):
-				logit("WebPBL: IP/CIDR non combaciano", IP, CIDR)
-				db.execute("delete from PBLURL where URL=%s", (IP,))
-				continue
-
-			try: # tutto ok, quindi inserisco
-				db.execute("insert into PBL (CIDR) values (%s)", (CIDR,))
-			except:
-				logit("WebPBL: fallito inserimento", CIDR)
-			db.execute("delete from PBLURL where URL=%s", (IP,))
-		db.close()
-
 def blocca_in_iptables(indirizzo_da_bloccare, bloccalo_per):
 	"""Ricevo IP e numero di giorni. Metto in IPTables e aggiorno Blocked->Fucklog->Mysql"""
 
@@ -220,8 +193,8 @@ def connetto_db():
 	try:
 		return MySQLdb.connect(host=mysql_host, user=mysql_user, passwd=mysql_passwd, db=mysql_db).cursor()
 	except:
-		print "Fottuta la connessione al DB"
-		logit('Connetto_db: errore nella connesione')
+		print("Fottuta la connessione al DB")
+		logit("Connetto_db: errore nella connesione")
 		time.sleep(5)
 		sys.exit(-1)
 
@@ -284,7 +257,7 @@ def lettore():
 				logit("Lettore: fallito stat di log. Rotazione?")
 				time.sleep(intervallo)
 				continue
-			if (( t_inode != fdlog_inode ) or (t_size < fdlog_size)):
+			if ((t_inode != fdlog_inode) or (t_size < fdlog_size)):
 				logit("Lettore: cambiato logfile %s => o_inode: %s, o_size: %s ; n_inode: %s, n_size: %s" % (postfix_log_file, fdlog_inode, fdlog_size, t_inode, t_size))
 				fdlog.close()
 				fdlog = open(postfix_log_file, "r")
@@ -446,17 +419,15 @@ def statistiche_mrtg():
 def verifica_manuale_pbl(IP): 
 	"""Ricevo un IP e lo metto in coda per la verifica via WEB (PblUrl->Fucklog->MySQL)"""
 
-	db = connetto_db()
-	try:
-		db.execute("insert into PBLURL (URL) values (%s)", (IP,))
-	except:
-		pass
-	if os.path.exists('/usr/bin/mail'):
-		echo_command = shlex.split("echo '"+pbl_url+"'")
-		mail_command = shlex.split("mail -s 'cekka %s' %s" % (IP, pbl_email))
-		subprocess.Popen(mail_command, stdin=subprocess.Popen(echo_command, stdout=subprocess.PIPE).stdout, stdout=subprocess.PIPE).wait()
-	else:
-		logit('PBL: mancanza comando "mail"')
+	spob = pblob.sphPBL(IP)
+	if (spob.cidr):
+		db = connetto_db()
+		size =  netaddr.IPNetwork(spob.cidr).size
+		try:
+			db.execute("INSERT INTO PBL(CIDR,NAME,SIZE,CATEGORY) values (%s,%s,%s,%s)", (spob.cidr,spob.pbl_num,size,"pbl"))
+		except:
+			pass
+
 
 if __name__ == "__main__":
 	if True: # da fare
@@ -553,7 +524,7 @@ if __name__ == "__main__":
 
 	if True: # controllo istanze attive
 		if os.path.isfile(pidfile): # controllo istanze attive
-			if os.path.isdir( '/proc/' + str( file(pidfile,'r').read() )):
+			if os.path.isdir('/proc/' + str(file(pidfile,'r').read())):
 				print "Main: probabile ci sia un'altra istanza già in esecuzione di Fucklog. Se così non fosse, elimina",pidfile
 				sys.exit(-1)
 			else:
@@ -578,7 +549,7 @@ if __name__ == "__main__":
 				subprocess.call(shlex.split("/sbin/iptables -F fucklog")) # la svuoto
 			else:
 				subprocess.call(shlex.split("/sbin/iptables -N fucklog")) # diversamente la creo
-			if(subprocess.Popen(shlex.split("/sbin/iptables -L INPUT -n"), stdout=subprocess.PIPE).stdout.read().find("fucklog") == -1): # se non esiste il jump
+			if (subprocess.Popen(shlex.split("/sbin/iptables -L INPUT -n"), stdout=subprocess.PIPE).stdout.read().find("fucklog") == -1): # se non esiste il jump
 				subprocess.call(shlex.split("/sbin/iptables -A INPUT -p tcp --dport 25 -j fucklog")) # lo creo
 			db.execute('delete from BLOCKED where END < CURRENT_TIMESTAMP()') # disintegro le regole scadute nel frattempo
 			db.execute('select IP from BLOCKED order by END') # e ripopolo
@@ -593,7 +564,6 @@ if __name__ == "__main__":
 	if True: # partenza dei thread
 		elenco_thread = []
 		threads = [
-			aggiorna_pbl,
 			aggiorna_blacklist,
 			pbl_expire,
 			rimozione_ip_vecchi,
