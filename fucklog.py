@@ -193,7 +193,7 @@ def connetto_db():
 	try:
 		return MySQLdb.connect(host=mysql_host, user=mysql_user, passwd=mysql_passwd, db=mysql_db).cursor()
 	except:
-		print("Fottuta la connessione al DB")
+		print "Fottuta la connessione al DB"
 		logit("Connetto_db: errore nella connesione")
 		time.sleep(5)
 		sys.exit(-1)
