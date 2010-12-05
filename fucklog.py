@@ -419,6 +419,7 @@ def statistiche_mrtg():
 def get_pbl_from_spamhaus(IP):
 	"""Give me an IP, I'll give you back its complete Spamhaus PBL cidr"""
 
+	logit('PBL: check',IP)
 	spob = pblob.sphPBL(IP)
 	if (spob.cidr):
 		db = connetto_db()
@@ -427,11 +428,14 @@ def get_pbl_from_spamhaus(IP):
 			db.execute("INSERT INTO PBL(CIDR,NAME,SIZE,CATEGORY) values (%s,%s,%s,%s)", (spob.cidr,spob.pbl_num,size,"pbl"))
 		except:
 			pass
-	if os.path.exists('/usr/bin/mail'):
 		body = 'IP: %s - CIDR: %s - PBL: %s' % (IP, spob.cidr, spob.pbl_num)
-		echo_command = shlex.split("echo '"+body+"'")
-		mail_command = shlex.split("mail -s 'Fucklog: %s PBL' %s" % (spob.cidr, pbl_email))
-		subprocess.Popen(mail_command, stdin=subprocess.Popen(echo_command, stdout=subprocess.PIPE).stdout, stdout=subprocess.PIPE).wait()
+		if os.path.exists('/usr/bin/mail'):
+			echo_command = shlex.split("echo '"+body+"'")
+			mail_command = shlex.split("mail -s 'Fucklog: %s PBL' %s" % (spob.cidr, pbl_email))
+			subprocess.Popen(mail_command, stdin=subprocess.Popen(echo_command, stdout=subprocess.PIPE).stdout, stdout=subprocess.PIPE).wait()
+		logit('PBL:',body)
+	else:
+		logit('PBL: (maybe) error with IP',IP,': check if they hate me')
 
 if __name__ == "__main__":
 	if True: # da fare
