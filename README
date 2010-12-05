@@ -5,7 +5,7 @@ da netfilter, per un periodo di tempo variabile a seconda della loro insistenza.
 
 == Di che cosa ho bisogno per farlo funzionare ? ==
 Fucklog usa alcuni moduli Python non standard portati comunque all'interno
-del programma, ne restano esclusi:
+del programma, ne resta escluso:
 - MySQL-Python:		http://mysql-python.sourceforge.net/		(deb: python-mysqldb)
 
 Inoltre utilizza software esterni quali:
@@ -21,9 +21,6 @@ apt-get install python-mysqldb python rsync mrtg iptables mysql-server
 Per far funzionare fucklog hai bisogno di un file di configurazione,
 oltre che dello schema del DB (sempre in contrib).
 Trai principio e ispirazione da contrib/fucklog.conf.esempio.
-
-Se vuoi poter anche aggiornare le voci relative alla lista PBL, dovrai
-utilizzare/installare anche lo script PHP (pbl_check.php).
 
 == Ma davvero qualcuno lo usa? ==
 Da ormai un anno c'è ben *una* installazione funzionante (ovviamente di
