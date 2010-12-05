@@ -425,7 +425,6 @@ def get_pbl_from_spamhaus(IP):
 		db = connetto_db()
 		size = netaddr.IPNetwork(spob.cidr).size
 		try:
-			#db.execute("INSERT INTO PBL(CIDR,NAME,SIZE,CATEGORY) values (%s,%s,%s,%s)", (spob.cidr,spob.pbl_num,size,"pbl"))
 			db.execute("INSERT INTO PBL(CIDR) values (%s)", (spob.cidr))
 		except:
 			pass
@@ -448,6 +447,7 @@ if __name__ == "__main__":
 		# abbandonare MySQL in favore di sqlite?
 		# aprire i file di log/mrtg solo in lettura/scrittura per root
 		# inserire possibilità whitelist/blacklist personalizzate
+		# now we can also have PBL complete name. Maybe it's time to re-think validation process?
 		pass
 
 	if True: # lettura della configurazione e definizione delle variabili globali
