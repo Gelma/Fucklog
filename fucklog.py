@@ -427,6 +427,11 @@ def get_pbl_from_spamhaus(IP):
 			db.execute("INSERT INTO PBL(CIDR,NAME,SIZE,CATEGORY) values (%s,%s,%s,%s)", (spob.cidr,spob.pbl_num,size,"pbl"))
 		except:
 			pass
+	if os.path.exists('/usr/bin/mail'):
+		body = 'IP: %s - CIDR: %s - PBL: %s' % (IP, spob.cidr, spob.pbl_num)
+		echo_command = shlex.split("echo '"+body+"'")
+		mail_command = shlex.split("mail -s 'Fucklog: %s PBL' %s" % (spob.cidr, pbl_email))
+		subprocess.Popen(mail_command, stdin=subprocess.Popen(echo_command, stdout=subprocess.PIPE).stdout, stdout=subprocess.PIPE).wait()
 
 if __name__ == "__main__":
 	if True: # da fare
