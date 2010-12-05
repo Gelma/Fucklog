@@ -3,13 +3,15 @@ import urllib2
 import re
 
 class sphPBL:
+	"""Give me an IP, I'll give you back its complete Spamhaus PBL cidr"""
 
 	ip = None
 	pbl_num = None
 	pbl_url = None
 	cidr = None
 
-	_header={"User-Agent":"ciao","Accept":"miao"}
+	_header = { "User-Agent":"Mozilla/5.0 (X11; U; Linux i686; it; rv:1.9.2.12) Gecko/20101027 Ubuntu/10.04 (lucid) Firefox/3.6.12",
+				"Accept":"text/html"}
 
 	def __init__(self,ip=None):
 		if( ip != None ):
@@ -20,7 +22,7 @@ class sphPBL:
 		self._fetch_pbl()
 		self._fetch_cidr()
 		return 0
-	
+
 	def _fetch_pbl(self):
 		req_url = "http://www.spamhaus.org/query/bl?ip=%s" % self.ip
 		req = urllib2.Request(req_url,None,self._header)
