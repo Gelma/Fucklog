@@ -425,7 +425,8 @@ def get_pbl_from_spamhaus(IP):
 		db = connetto_db()
 		size = netaddr.IPNetwork(spob.cidr).size
 		try:
-			db.execute("INSERT INTO PBL(CIDR,NAME,SIZE,CATEGORY) values (%s,%s,%s,%s)", (spob.cidr,spob.pbl_num,size,"pbl"))
+			#db.execute("INSERT INTO PBL(CIDR,NAME,SIZE,CATEGORY) values (%s,%s,%s,%s)", (spob.cidr,spob.pbl_num,size,"pbl"))
+			db.execute("INSERT INTO PBL(CIDR) values (%s)", (spob.cidr))
 		except:
 			pass
 		body = 'IP: %s - CIDR: %s - PBL: %s' % (IP, spob.cidr, spob.pbl_num)
