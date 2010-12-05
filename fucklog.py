@@ -299,9 +299,9 @@ def lettore():
 								except db.IntegrityError:
 									db.execute("update IP set DNS=%s, FROOM=%s, TOO=%s, REASON=%s, LINE=%s, counter=counter+1, DATE=CURRENT_TIMESTAMP where IP=INET_ATON(%s)", (DNS, FROM, TO, REASON, log_line, IP))								
 						else: # se non ricado in nessuna classe nota, opero sulla singola voce
-							if ip_in_pbl(IP): # se risulta in PBL, ma non nelle CIDR, accodo per il controllo manuale
+							if ip_in_pbl(IP): # se risulta in PBL, ma non nelle CIDR, interrogo spamhaus
 								if Debug: logit('Log:', IP, 'risulta in PBL. Lo accodo per il web')
-								verifica_manuale_pbl(IP)
+								get_pbl_from_spamhaus(IP)
 							db.execute('select COUNTER from IP where IP=INET_ATON(%s)', (IP,)) # ricavo fino a quando bloccarlo
 							if db.rowcount:
 								bloccalo_per = db.fetchone()[0] + 1
@@ -416,18 +416,17 @@ def statistiche_mrtg():
 		file_mrtg_stats.flush()
 		time.sleep(5 * 60)
 
-def verifica_manuale_pbl(IP): 
-	"""Ricevo un IP e lo metto in coda per la verifica via WEB (PblUrl->Fucklog->MySQL)"""
+def get_pbl_from_spamhaus(IP):
+	"""Give me an IP, I'll give you back its complete Spamhaus PBL cidr"""
 
 	spob = pblob.sphPBL(IP)
 	if (spob.cidr):
 		db = connetto_db()
-		size =  netaddr.IPNetwork(spob.cidr).size
+		size = netaddr.IPNetwork(spob.cidr).size
 		try:
 			db.execute("INSERT INTO PBL(CIDR,NAME,SIZE,CATEGORY) values (%s,%s,%s,%s)", (spob.cidr,spob.pbl_num,size,"pbl"))
 		except:
 			pass
-
 
 if __name__ == "__main__":
 	if True: # da fare
