@@ -423,17 +423,17 @@ def get_pbl_from_spamhaus(IP):
 	spob = pblob.sphPBL(IP)
 	if (spob.cidr):
 		db = connetto_db()
-		size = netaddr.IPNetwork(spob.cidr).size
 		try:
 			db.execute("INSERT INTO PBL(CIDR) values (%s)", (spob.cidr))
 		except:
 			pass
-		body = 'IP: %s - CIDR: %s - PBL: %s' % (IP, spob.cidr, spob.pbl_num)
+		body = 'IP: %s - CIDR: %s - PBL: %s' % (IP, spob.cidr, spob.pbl_num) # Text for log and email
 		if os.path.exists('/usr/bin/mail'):
 			echo_command = shlex.split("echo '"+body+"'")
 			mail_command = shlex.split("mail -s 'Fucklog: %s PBL' %s" % (spob.cidr, pbl_email))
 			subprocess.Popen(mail_command, stdin=subprocess.Popen(echo_command, stdout=subprocess.PIPE).stdout, stdout=subprocess.PIPE).wait()
 		logit('PBL:',body)
+		blocca_in_iptables(spob.cidr, 1)
 	else:
 		logit('PBL: (maybe) error with IP',IP,': check if they hate me')
 
