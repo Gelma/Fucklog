@@ -300,7 +300,7 @@ def lettore():
 									db.execute("update IP set DNS=%s, FROOM=%s, TOO=%s, REASON=%s, LINE=%s, counter=counter+1, DATE=CURRENT_TIMESTAMP where IP=INET_ATON(%s)", (DNS, FROM, TO, REASON, log_line, IP))								
 						else: # se non ricado in nessuna classe nota, opero sulla singola voce
 							if ip_in_pbl(IP): # se risulta in PBL, ma non nelle CIDR, interrogo spamhaus
-								if Debug: logit('Log:', IP, 'risulta in PBL. Lo accodo per il web')
+								if Debug: logit('Log:', IP, 'in PBL. Looking for complete CIDR.')
 								get_pbl_from_spamhaus(IP)
 							db.execute('select COUNTER from IP where IP=INET_ATON(%s)', (IP,)) # ricavo fino a quando bloccarlo
 							if db.rowcount:
@@ -402,7 +402,7 @@ def statistiche_mrtg():
 	db = connetto_db()
 
 	while True:
-		db.execute("select count(*) from BLOCKED where CAST(BEGIN AS DATE)=CURDATE()") 
+		db.execute("select count(*) from BLOCKED where CAST(BEGIN AS DATE)=CURDATE()")
 		ip_di_oggi = str(db.fetchone()[0])
 
 		db.execute("select count(*) from BLOCKED")
@@ -424,7 +424,7 @@ def get_pbl_from_spamhaus(IP):
 	if (spob.cidr):
 		db = connetto_db()
 		try:
-			db.execute("INSERT INTO PBL(CIDR) values (%s)", (spob.cidr))
+			db.execute("insert into PBL(CIDR,NAME) values (%s,%s)", (spob.cidr,spob.pbl_num))
 		except:
 			pass
 		body = 'IP: %s - CIDR: %s - PBL: %s' % (IP, spob.cidr, spob.pbl_num) # Text for log and email
