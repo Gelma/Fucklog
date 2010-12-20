@@ -14,7 +14,7 @@ if True: # import dei moduli
 	except:
 		print """Manca il package MySQLdb (mysql-python.sourceforge.net). Debian/Ubuntu: apt-get install python-mysqldb"""
 		sys.exit(-1)
-	
+
 	try: # quelli inclusi in Fucklog
 		import netaddr          # Versione 0.7.5
 		import pygeoip          # Versione 0.1.3
@@ -43,7 +43,7 @@ def aggiorna_cidr():
 	db = connetto_db()
 
 	tmpfd=open(uce_dir+'tmp-blacklist','w') # preparo l'output delle blacklist
-	
+
 	if os.path.isfile(uce_dir+'tmp-blacklist'): # genero elenco dei miei IP/CIDR per blacklist
 		db.execute('select INET_NTOA(IP) from IP UNION SELECT CIDR from PBL')
 		for line in db.fetchall():
@@ -59,7 +59,7 @@ def aggiorna_cidr():
 					continue
 				for cidr in netaddr.glob_to_cidrs(ip):
 					tmpfd.write('%s\n' % cidr)
-	
+
 	if os.path.isfile(uce_dir+'antispam.imp.ch.txt'):
 		with open(uce_dir+'antispam.imp.ch.txt', 'r') as tmpfdinput: # estraggo IP da antispam.imp.ch.txt
 			for line in tmpfdinput:
@@ -111,7 +111,7 @@ def aggiorna_cidr():
 			continue
 		logit('AggCidr: aggiungo', cidr)
 		db.execute('insert into CIDR (CIDR, IPSTART, IPEND, SIZE) values (%s, %s, %s, %s)', (cidr, int(cidr[0]), int(cidr[-1]), cidr.size))
-	
+
 	for cidr in lista_cidrs_vecchi - lista_cidrs_nuovi: # cancello i vecchi
 		logit('AggCidr: rimuovo', cidr)
 		db.execute('delete from CIDR where CIDR=%s', (cidr,))
@@ -126,10 +126,6 @@ def aggiorna_blacklist():
 	while True:
 		dormi_fino_alle(uce_ore, uce_minuti)
 		logit('UCE: inizio aggiornamento')
-		
-		uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd rsync1.dnswl.org::dnswl/postfix-dnswl-permit '+uce_dir+'dnswl_white_list.txt')
-		if subprocess.call(uce_rsync):
-			logit('UCE: errore rsync dnswl')
 
 		uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd rsync-mirrors.uceprotect.net::RBLDNSD-ALL/ '+uce_dir)
 		if subprocess.call(uce_rsync):
@@ -153,7 +149,7 @@ def aggiorna_blacklist():
 			pass
 		if subprocess.call(shlex.split("/usr/bin/wget -q 'http://www.spamhaus.org/drop/drop.lasso' -O "+uce_dir+'drop.lasso')):
 			logit('UCE: errore wget lasso')
-		
+
 		try:
 			os.remove(uce_dir+'antispam.imp.ch.txt')
 		except:
@@ -246,7 +242,7 @@ def lettore():
 	fdlog = open(postfix_log_file, "r")
 	fdlog_stat = os.stat(postfix_log_file)
 	fdlog_inode, fdlog_size = fdlog_stat.st_ino, fdlog_stat.st_size
-	
+
 	while True:
 		log_line = fdlog.readline()
 		if not log_line:
@@ -297,7 +293,7 @@ def lettore():
 								try: # ma aggiorno anche il singolo IP nell'elenco IP, per avere chi ha innescato la CIDR
 									db.execute("insert into IP (IP, DNS, FROOM, TOO, REASON, LINE, GEOIP) values (INET_ATON(%s), %s, %s, %s, %s, %s, %s)", (IP, DNS, FROM, TO, REASON, log_line, nazione_dello_ip(IP)))
 								except db.IntegrityError:
-									db.execute("update IP set DNS=%s, FROOM=%s, TOO=%s, REASON=%s, LINE=%s, counter=counter+1, DATE=CURRENT_TIMESTAMP where IP=INET_ATON(%s)", (DNS, FROM, TO, REASON, log_line, IP))								
+									db.execute("update IP set DNS=%s, FROOM=%s, TOO=%s, REASON=%s, LINE=%s, counter=counter+1, DATE=CURRENT_TIMESTAMP where IP=INET_ATON(%s)", (DNS, FROM, TO, REASON, log_line, IP))
 						else: # se non ricado in nessuna classe nota, opero sulla singola voce
 							if ip_in_pbl(IP): # se risulta in PBL, ma non nelle CIDR, interrogo spamhaus
 								if Debug: logit('Log:', IP, 'in PBL. Looking for complete CIDR.')
