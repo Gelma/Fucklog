@@ -1,0 +1,12 @@
+
+# dnswl.org export in rbldnsd format (to be used as an "ip4set")
+# Exported at 2010-12-20 11:21:05 with /home/jobs/bin/export-rbldnsd.pl
+# Certain restrictions for usage and distribution 
+# apply, see http://www.dnswl.org/license
+
+# SOA, NS records
+$TTL 12h
+$SOA 12h ns0.dnswl.org admins.dnswl.org 0 3600 300 432000 43200
+$0 http://www.dnswl.org/search.pl?s=
+$NS 12h a.ns.dnswl.org b.ns.dnswl.org c.ns.dnswl.org d.ns.dnswl.org e.ns.dnswl.org f.ns.dnswl.org g.ns.dnswl.org h.ns.dnswl.org i.ns.dnswl.org j.ns.dnswl.org k.ns.dnswl.org l.ns.dnswl.org 
+

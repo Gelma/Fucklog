@@ -1,0 +1,12 @@
+
+# dnswl.org export in Lotus Notes/Domino format
+# Exported at 2010-12-20 11:21:09 with /home/jobs/bin/export-notes.pl
+# Format: There are three possible line formats:
+# 	[a.b.c.d]	<- simple IP address
+#	[a.b.c.*]	<- /24 network
+#	[a.b.c.d-e]	<- range from a.b.c.d to a.b.c.e
+#
+# This export format does *not* include descriptive
+# text or DNSWL Ids.
+# Certain restrictions for usage and distribution 
+# apply, see http://www.dnswl.org/license
