@@ -417,7 +417,6 @@ def statistiche_mrtg():
 def get_pbl_from_spamhaus(IP):
 	"""Give me an IP, I'll give you back its complete Spamhaus PBL cidr"""
 
-	logit('PBL: check',IP)
 	spob = pblob.sphPBL(IP)
 	if (spob.cidr):
 		db = connetto_db()
