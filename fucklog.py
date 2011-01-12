@@ -336,7 +336,7 @@ def nazione_dello_ip(IP):
 		return None
 
 def pbl_expire():
-	"""Controllo tutte le CIDR PBL più vecchie di due mesi, ed eventualmente le sego (Cidr->Fucklog->MySQL)"""
+	"""I check all the PBL entries older than 2 months."""
 
 	dadi = random.SystemRandom()
 	pausa_tra_le_query = 23 # numero di secondi tra un query e l'altra. in questo modo sono poco più di 3700 query al giorno
@@ -346,9 +346,9 @@ def pbl_expire():
 	while True:
 		cidr_controllate = cidr_cancellate = 0
 		db = connetto_db()
-		db.execute("select CIDR from PBL where LASTUPDATE < (CURRENT_TIMESTAMP() - INTERVAL 2 MONTH)  order by RAND()")
+		db.execute("select CIDR from PBL where LASTUPDATE < (CURRENT_TIMESTAMP() - INTERVAL 2 MONTH) order by RAND()")
 		if not db.rowcount:
-			logit('PBL Expire: nessuna voce da controllare. Riprovo tra 24 ore')
+			logit('PBL Expire: not enough older entry to check. I will retry in a day')
 			db.close()
 			time.sleep(86400)
 		else:
@@ -358,7 +358,7 @@ def pbl_expire():
 				ip_to_test = CIDR[dadi.randint(0, CIDR.size - 1)] # estraggo un IP a caso della CIDR
 				if not ip_gia_in_cidr(ip_to_test): # se non risulta più in PBL
 					cidr_cancellate += 1 # incremento le voci cancellate
-					logit('PBL Expire: elimino', CIDR, '- controllate:', cidr_controllate, '- cancellate:', cidr_cancellate)
+					logit('PBL Expire: removed', CIDR, '- checked:', cidr_controllate, '- deleted:', cidr_cancellate)
 					db.execute("delete from PBL where CIDR=%s", (CIDR,))
 				else:
 					db.execute("update PBL set LASTUPDATE=CURRENT_TIMESTAMP where CIDR=%s", (CIDR,))
