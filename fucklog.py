@@ -344,7 +344,7 @@ def pbl_expire():
 	time.sleep(120) # I wait to start on boot
 
 	while True:
-		cidr_controllate = cidr_cancellate = 0
+		cidr_checked = cidr_deleted = 0
 		db = connetto_db()
 		db.execute("select CIDR from PBL where LASTUPDATE < (CURRENT_TIMESTAMP() - INTERVAL 2 MONTH) order by RAND()")
 		if not db.rowcount:
@@ -353,12 +353,14 @@ def pbl_expire():
 			time.sleep(86400)
 		else:
 			for CIDR in db.fetchall():
-				cidr_controllate += 1
+				cidr_checked += 1
 				CIDR = netaddr.IPNetwork(CIDR[0])
 				ip_to_test = CIDR[dadi.randint(0, CIDR.size - 1)] # I pick a random address of the CIDR pool
+				# Todo: we should check more IP of same range (PBL CIDR can be smaller, or removed, but with the checked IP spamming).
+				# Todo: maybe we should be check via pblob, but Spamhaus is sensitive about HTTP check
 				if not ip_gia_in_cidr(ip_to_test): # Necro, please check this out. I guess it should be ip_in_pbl()
-					cidr_cancellate += 1
-					logit('PBL Expire: removed', CIDR, '- checked:', cidr_controllate, '- deleted:', cidr_cancellate)
+					cidr_deleted += 1
+					logit('PBL Expire: removed', CIDR, '- checked:', cidr_checked, '- deleted:', cidr_deleted)
 					db.execute("delete from PBL where CIDR=%s", (CIDR,))
 				else:
 					db.execute("update PBL set LASTUPDATE=CURRENT_TIMESTAMP where CIDR=%s", (CIDR,))
