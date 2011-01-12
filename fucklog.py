@@ -339,9 +339,9 @@ def pbl_expire():
 	"""I check all the PBL entries older than 2 months."""
 
 	dadi = random.SystemRandom()
-	pausa_tra_le_query = 23 # numero di secondi tra un query e l'altra. in questo modo sono poco più di 3700 query al giorno
+	query_interval = 24 # Sleeping time between queries. So we can check 3600 CIDR/day
 
-	time.sleep(120) # per evitare lo storm ad ogni ripartenza
+	time.sleep(120) # I wait to start on boot
 
 	while True:
 		cidr_controllate = cidr_cancellate = 0
@@ -355,14 +355,14 @@ def pbl_expire():
 			for CIDR in db.fetchall():
 				cidr_controllate += 1
 				CIDR = netaddr.IPNetwork(CIDR[0])
-				ip_to_test = CIDR[dadi.randint(0, CIDR.size - 1)] # estraggo un IP a caso della CIDR
-				if not ip_gia_in_cidr(ip_to_test): # se non risulta più in PBL
-					cidr_cancellate += 1 # incremento le voci cancellate
+				ip_to_test = CIDR[dadi.randint(0, CIDR.size - 1)] # I pick a random address of the CIDR pool
+				if not ip_gia_in_cidr(ip_to_test): # Necro, please check this out. I guess it should be ip_in_pbl()
+					cidr_cancellate += 1
 					logit('PBL Expire: removed', CIDR, '- checked:', cidr_controllate, '- deleted:', cidr_cancellate)
 					db.execute("delete from PBL where CIDR=%s", (CIDR,))
 				else:
 					db.execute("update PBL set LASTUPDATE=CURRENT_TIMESTAMP where CIDR=%s", (CIDR,))
-				time.sleep(pausa_tra_le_query)
+				time.sleep(query_interval)
 
 def rimozione_ip_vecchi():
 	"""Leggo Ip->Fucklog->MySQL e rimuovo gli IP che da più di 4 mesi non spammano"""
