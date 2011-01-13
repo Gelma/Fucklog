@@ -335,6 +335,25 @@ def nazione_dello_ip(IP):
 	except:
 		return None
 
+def pbl_latest_check():
+	"""Everyday I re-check latest 15 days PBL entries"""
+
+	time.sleep(180)
+	while True:
+		time.sleep(31536000)
+		# Select PBL < 15 day update
+		# Is it still blocked:
+		#	do nothing
+		# else:
+		#	remove
+		# Uhm... in this way it would double check entries updated by pbl_expire...
+		# Why do this?
+		# Think about this:
+		# a) Spamhaus insert a CIDR in PBL
+		# b) CIDR owner reclaim/fix/contact spamhaus
+		# c) Spamhaus remove CIDR from PBL
+		# d) We are not updated 'till next month (or check)
+
 def pbl_expire():
 	"""I check all the PBL entries older than 2 months."""
 
@@ -357,7 +376,7 @@ def pbl_expire():
 				CIDR = netaddr.IPNetwork(CIDR[0])
 				ip_to_test = CIDR[dadi.randint(0, CIDR.size - 1)] # I pick a random address of the CIDR pool
 				# Todo: we should check more IP of same range (PBL CIDR can be smaller, or removed, but with the checked IP spamming).
-				# Todo: maybe we should be check via pblob, but Spamhaus is sensitive about HTTP check
+				# Todo: maybe we should be check via pblob, but Spamhaus is sensitive about HTTP requests
 				if not ip_gia_in_cidr(ip_to_test): # Necro, please check this out. I guess it should be ip_in_pbl()
 					cidr_deleted += 1
 					logit('PBL Expire: removed', CIDR, '- checked:', cidr_checked, '- deleted:', cidr_deleted)
@@ -572,6 +591,7 @@ if __name__ == "__main__":
 		threads = [
 			aggiorna_blacklist,
 			pbl_expire,
+			pbl_latest_check,
 			rimozione_ip_vecchi,
 			statistiche_mrtg,
 			scadenza_iptables,
