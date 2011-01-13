@@ -377,7 +377,7 @@ def pbl_expire():
 				ip_to_test = CIDR[dadi.randint(0, CIDR.size - 1)] # I pick a random address of the CIDR pool
 				# Todo: we should check more IP of same range (PBL CIDR can be smaller, or removed, but with the checked IP spamming).
 				# Todo: maybe we should be check via pblob, but Spamhaus is sensitive about HTTP requests
-				if not ip_gia_in_cidr(ip_to_test): # Necro, please check this out. I guess it should be ip_in_pbl()
+				if not ip_in_pbl(ip_to_test):
 					cidr_deleted += 1
 					logit('PBL Expire: removed', CIDR, '- checked:', cidr_checked, '- deleted:', cidr_deleted)
 					db.execute("delete from PBL where CIDR=%s", (CIDR,))
