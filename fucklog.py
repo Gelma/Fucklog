@@ -191,7 +191,9 @@ def block_all_cidr():
 	db = connetto_db()
 	db.execute('SELECT CIDR from CIDR where CIDR not in (select IP from BLOCKED)')
 	for cidr in db.fetchall():
-		blocca_in_iptables(cidr[0], 7)
+		IP = cidr[0]
+		if not gia_in_blocco(IP):
+			blocca_in_iptables(IP, 7)
 	logit('block_all_cidr: end')
 
 def connetto_db():
