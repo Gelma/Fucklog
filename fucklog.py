@@ -184,6 +184,16 @@ def blocca_in_iptables(indirizzo_da_bloccare, bloccalo_per):
 			logit('blocca_in_iptables: fallito inserimento', indirizzo_da_bloccare)
 		db.close()
 
+def block_all_cidr():
+	"""I block all CIDR for a week"""
+
+	logit('block_all_cir: start')
+	db = connetto_db()
+	db.execute('SELECT CIDR from CIDR where CIDR not in (select IP from BLOCKED)')
+	for cidr in db.fetchall():
+		blocca_in_iptables(cidr[0], 7)
+	logit('block_all_cidr: end')
+
 def connetto_db():
 	"""Torno una connessione al DB MySQL"""
 	try:
@@ -619,5 +629,9 @@ if __name__ == "__main__":
 		if command == "a":
 			print "aggiornamento Cidr"
 			aggiorna_cidr()
+		if command == 'e':
+			print 'I block all Cidr for a week'
+			aggiorna_cidr()
+			block_all_cidr()
 		if command == "h":
 			print "Help:\n\tq: quit\n\ta: Aggiorna Cidr\n"
