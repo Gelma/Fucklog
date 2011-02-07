@@ -175,7 +175,7 @@ def blocca_in_iptables(indirizzo_da_bloccare, bloccalo_per):
 
 	fino_al_timestamp = str(datetime.datetime.now() + datetime.timedelta(hours=ore_di_blocco * bloccalo_per)) # calcolo il timestamp di fine
 	if subprocess.call(['/sbin/iptables', '-A', 'fucklog', '-s', indirizzo_da_bloccare, '--protocol', 'tcp', '--dport', '25', '-j', 'DROP'], shell=False):
-		logit('BloccaIpTables: errore IpTables', indirizzo_da_bloccare)
+		logit('BloccaIpTables: error adding IpTables rules for', indirizzo_da_bloccare)
 	else:
 		db = connetto_db()
 		try:
@@ -636,4 +636,4 @@ if __name__ == "__main__":
 			aggiorna_cidr()
 			block_all_cidr()
 		if command == "h":
-			print "Help:\n\tq: quit\n\ta: Aggiorna Cidr\n"
+			print "Help:\n\tq: quit\n\ta: Aggiorna Cidr\n\te: block all CIDRs for a week\n"
