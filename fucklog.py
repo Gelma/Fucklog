@@ -321,7 +321,12 @@ def lettore():
 def logit(*args):
 	"""I receive strings/iterable objects, convert them to text and put in logfile."""
 
-	linea_log = datetime.datetime.now().strftime('%H:%M:%S') + ' (' + inspect.stack()[1][3] + '): '
+	try:
+		caller = inspect.stack()[1][3]
+	except:
+		caller = ''
+
+	linea_log = datetime.datetime.now().strftime('%H:%M:%S') + ' (' + caller + '): '
 
 	try:
 		linea_log += ' '.join(args)
