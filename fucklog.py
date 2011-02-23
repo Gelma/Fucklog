@@ -3,7 +3,7 @@
 
 if True: # import dei moduli
 	try: # quelli builtin
-		import ConfigParser, datetime, getopt, multiprocessing, os, random, re, shlex, subprocess, sys, time, urllib
+		import ConfigParser, datetime, getopt, inspect, multiprocessing, os, random, re, shlex, subprocess, sys, time, urllib
 	except:
 		import sys
 		print "Errore nell'import dei moduli standard. Versione troppo vecchia dell'interprete?"
@@ -35,10 +35,10 @@ def aggiorna_cidr():
 	"""Prendo gli IP noti che ho, insieme a un po' di blacklist, meno le whitelist, e sbatto tutto in Cidr->Fucklog->MySQL"""
 
 	if not lock_cidr.acquire(0):
-		logit('AggCidr: aggiornamento già in esecuzione, tralascio.')
+		logit('aggiornamento già in esecuzione, tralascio.')
 		return
 
-	logit('AggCidr: inizio aggiornamento')
+	logit('inizio aggiornamento')
 	cronometro = time.time()
 	db = connetto_db()
 
@@ -107,17 +107,17 @@ def aggiorna_cidr():
 		try:
 			cidr = netaddr.IPNetwork(cidr)
 		except:
-			logit('Cidr: CIDR non valida in input',cidr)
+			logit('CIDR non valida in input',cidr)
 			continue
-		logit('AggCidr: aggiungo', cidr)
+		logit('aggiungo', cidr)
 		db.execute('insert into CIDR (CIDR, IPSTART, IPEND, SIZE) values (%s, %s, %s, %s)', (cidr, int(cidr[0]), int(cidr[-1]), cidr.size))
 
 	for cidr in lista_cidrs_vecchi - lista_cidrs_nuovi: # cancello i vecchi
-		logit('AggCidr: rimuovo', cidr)
+		logit('rimuovo', cidr)
 		db.execute('delete from CIDR where CIDR=%s', (cidr,))
 
 	db.close()
-	logit('AggCidr: completato in', time.time() - cronometro, 'secondi')
+	logit('completato in', time.time() - cronometro, 'secondi')
 	lock_cidr.release()
 
 def aggiorna_blacklist():
@@ -125,48 +125,48 @@ def aggiorna_blacklist():
 
 	while True:
 		dormi_fino_alle(uce_ore, uce_minuti)
-		logit('UCE: inizio aggiornamento')
+		logit('inizio aggiornamento')
 
 		uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd rsync-mirrors.uceprotect.net::RBLDNSD-ALL/ '+uce_dir)
 		if subprocess.call(uce_rsync):
-			logit('UCE: errore rsync UceProtect.net')
+			logit('errore rsync UceProtect.net')
 
 		uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd psbl-mirror.surriel.com::psbl/psbl.txt '+uce_dir+'psbl.txt')
 		if subprocess.call(uce_rsync):
-			logit('UCE: errore rsync surriel.com')
+			logit('errore rsync surriel.com')
 
 		uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd rsync://rsync.cbl.abuseat.org/cbl/list.txt '+uce_dir+'cbl.abuseat.org')
 		if subprocess.call(uce_rsync):
-			logit('UCE: errore rsync abuseat.org')
+			logit('errore rsync abuseat.org')
 
 		uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd rsync.spamcannibal.org::zonefiles/bl.spamcannibal.org.in.ip4set.rbl '+uce_dir+'spamcannibal.org')
 		if subprocess.call(uce_rsync):
-			logit('UCE: errore rsync spamcannibal')
+			logit('errore rsync spamcannibal')
 
 		try:
 			os.remove(uce_dir+'drop.lasso')
 		except:
 			pass
 		if subprocess.call(shlex.split("/usr/bin/wget -q 'http://www.spamhaus.org/drop/drop.lasso' -O "+uce_dir+'drop.lasso')):
-			logit('UCE: errore wget lasso')
+			logit('errore wget lasso')
 
 		try:
 			os.remove(uce_dir+'antispam.imp.ch.txt')
 		except:
 			pass
 		if subprocess.call(shlex.split("/usr/bin/wget -q 'http://antispam.imp.ch/spamlist' -O "+uce_dir+'antispam.imp.ch.txt')):
-			logit('UCE: errore wget antispam.imp.ch')
+			logit('errore wget antispam.imp.ch')
 
 		try:
 			os.remove(uce_dir+'swinog-dnsrbl-whitelist')
 		except:
 			pass
 		if subprocess.call(shlex.split("/usr/bin/wget -q 'http://antispam.imp.ch/swinog-dnsrbl-whitelist' -O "+uce_dir+'swinog-dnsrbl-whitelist')):
-			logit('UCE: errore wget swinog-dnsrbl-whitelist')
+			logit('errore wget swinog-dnsrbl-whitelist')
 
 		uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd rsync://rsync.unsubscore.com/LBBL/blacklist.txt '+uce_dir+'unsubscore.com')
 		if subprocess.call(uce_rsync):
-			logit('UCE: errore rsync unsubscore.com')
+			logit('errore rsync unsubscore.com')
 
 		aggiorna_cidr()
 
@@ -175,26 +175,26 @@ def blocca_in_iptables(indirizzo_da_bloccare, bloccalo_per):
 
 	fino_al_timestamp = str(datetime.datetime.now() + datetime.timedelta(hours=ore_di_blocco * bloccalo_per)) # calcolo il timestamp di fine
 	if subprocess.call(['/sbin/iptables', '-A', 'fucklog', '-s', indirizzo_da_bloccare, '--protocol', 'tcp', '--dport', '25', '-j', 'DROP'], shell=False):
-		logit('BloccaIpTables: error adding IpTables rules for', indirizzo_da_bloccare)
+		logit('error adding IpTables rules for', indirizzo_da_bloccare)
 	else:
 		db = connetto_db()
 		try:
 			db.execute("insert into BLOCKED (IP, END) values (%s, %s)", (indirizzo_da_bloccare, fino_al_timestamp))
 		except:
-			logit('blocca_in_iptables: fallito inserimento', indirizzo_da_bloccare)
+			logit('fallito inserimento', indirizzo_da_bloccare)
 		db.close()
 
 def block_all_cidr():
 	"""I block all CIDR for a week"""
 
-	logit('block_all_cir: start')
+	logit('start')
 	db = connetto_db()
 	db.execute('SELECT CIDR from CIDR where CIDR not in (select IP from BLOCKED)')
 	for cidr in db.fetchall():
 		IP = cidr[0]
 		if not gia_in_blocco(IP):
 			blocca_in_iptables(IP, 7)
-	logit('block_all_cidr: end')
+	logit('end')
 
 def connetto_db():
 	"""Torno una connessione al DB MySQL"""
@@ -202,7 +202,7 @@ def connetto_db():
 		return MySQLdb.connect(host=mysql_host, user=mysql_user, passwd=mysql_passwd, db=mysql_db).cursor()
 	except:
 		print "Fottuta la connessione al DB"
-		logit("Connetto_db: errore nella connesione")
+		logit("errore nella connesione")
 		time.sleep(5)
 		sys.exit(-1)
 
@@ -262,11 +262,11 @@ def lettore():
 				t_stat = os.stat(postfix_log_file)
 				t_inode, t_size = t_stat.st_ino, t_stat.st_size
 			except:
-				logit("Lettore: fallito stat di log. Rotazione?")
+				logit("fallito stat di log. Rotazione?")
 				time.sleep(intervallo)
 				continue
 			if ((t_inode != fdlog_inode) or (t_size < fdlog_size)):
-				logit("Lettore: cambiato logfile %s => o_inode: %s, o_size: %s ; n_inode: %s, n_size: %s" % (postfix_log_file, fdlog_inode, fdlog_size, t_inode, t_size))
+				logit("cambiato logfile %s => o_inode: %s, o_size: %s ; n_inode: %s, n_size: %s" % (postfix_log_file, fdlog_inode, fdlog_size, t_inode, t_size))
 				fdlog.close()
 				fdlog = open(postfix_log_file, "r")
 				fdlog_inode = t_inode
@@ -282,13 +282,13 @@ def lettore():
 						IP, DNS, FROM, TO = m.group(2), m.group(1), None, None
 						if IP == 'unknown' or DNS != 'unknown': continue
 					if not gia_in_blocco(IP): # controllo che l'IP non sia già bloccato
-						if Debug: logit('Log:', IP, 'non bloccato')
+						if Debug: logit(IP, 'non bloccato')
 						if DNS == 'unknown': DNS = None
 						CIDR_dello_IP = ip_gia_in_cidr(IP) # controllo se l'IP appartiene ad una classe nota
 						if CIDR_dello_IP: # se è di classe nota
-							if Debug: logit('Log:', IP, "è di una classe nota")
+							if Debug: logit(IP, "è di una classe nota")
 							if gia_in_blocco(CIDR_dello_IP): # controllo che la CIDR dell'IP non sia già bloccata
-								if Debug: logit('Log:', IP, 'risulta la sua CIDR già in iptables', CIDR_dello_IP)
+								if Debug: logit(IP, 'risulta la sua CIDR già in iptables', CIDR_dello_IP)
 								continue
 							else: # se non è già bloccato
 								db.execute('select COUNTER from CIDR where CIDR=%s', (CIDR_dello_IP,)) # ricavo fino a quando bloccarlo
@@ -299,16 +299,16 @@ def lettore():
 								try: # aggiorno il contatore nel DB
 									db.execute("update CIDR set counter=%s where CIDR=%s", (bloccalo_per, CIDR_dello_IP))
 								except:
-									logit('Log: problema aggiornamento CIDR', CIDR_dello_IP)
+									logit('problema aggiornamento CIDR', CIDR_dello_IP)
 								indirizzo_da_bloccare = CIDR_dello_IP # definisco l'IP da bloccare
-								if Debug: logit('Log:', IP, 'blocco la CIDR', indirizzo_da_bloccare, 'con moltiplicatore ', bloccalo_per)
+								if Debug: logit(IP, 'blocco la CIDR', indirizzo_da_bloccare, 'con moltiplicatore ', bloccalo_per)
 								try: # ma aggiorno anche il singolo IP nell'elenco IP, per avere chi ha innescato la CIDR
 									db.execute("insert into IP (IP, DNS, FROOM, TOO, REASON, LINE, GEOIP) values (INET_ATON(%s), %s, %s, %s, %s, %s, %s)", (IP, DNS, FROM, TO, REASON, log_line, nazione_dello_ip(IP)))
 								except db.IntegrityError:
 									db.execute("update IP set DNS=%s, FROOM=%s, TOO=%s, REASON=%s, LINE=%s, counter=counter+1, DATE=CURRENT_TIMESTAMP where IP=INET_ATON(%s)", (DNS, FROM, TO, REASON, log_line, IP))
 						else: # se non ricado in nessuna classe nota, opero sulla singola voce
 							if ip_in_pbl(IP): # se risulta in PBL, ma non nelle CIDR, interrogo spamhaus
-								if Debug: logit('Log:', IP, 'in PBL. Looking for complete CIDR.')
+								if Debug: logit(IP, 'in PBL. Looking for complete CIDR.')
 								get_pbl_from_spamhaus(IP)
 							db.execute('select COUNTER from IP where IP=INET_ATON(%s)', (IP,)) # ricavo fino a quando bloccarlo
 							if db.rowcount:
@@ -320,14 +320,14 @@ def lettore():
 							except db.IntegrityError:
 								db.execute("update IP set DNS=%s, FROOM=%s, TOO=%s, REASON=%s, LINE=%s, counter=counter+1, DATE=CURRENT_TIMESTAMP where IP=INET_ATON(%s)", (DNS, FROM, TO, REASON, log_line, IP))
 							indirizzo_da_bloccare = IP
-						if Debug: logit('Log:', IP, 'bloccato con moltiplicatore', bloccalo_per)
+						if Debug: logit(IP, 'bloccato con moltiplicatore', bloccalo_per)
 						blocca_in_iptables(indirizzo_da_bloccare, bloccalo_per)
 						logit(indirizzo_da_bloccare, '|', bloccalo_per, '|', DNS, '|', FROM, '|', TO, '|', RegExpsReason[REASON])
 
 def logit(*args):
-	"""Ricevo un numero di argomenti a piacere, li salvo come unica stringa nei log"""
+	"""I receive strings/iterable objects, convert them to text and put in logfile."""
 
-	linea_log = datetime.datetime.now().strftime('%H:%M:%S') + ': '
+	linea_log = datetime.datetime.now().strftime('%H:%M:%S') + ' (' + inspect.stack()[1][3] + '): '
 
 	try:
 		linea_log += ' '.join(args)
@@ -379,7 +379,7 @@ def pbl_expire():
 		db = connetto_db()
 		db.execute("select CIDR from PBL where LASTUPDATE < (CURRENT_TIMESTAMP() - INTERVAL 2 MONTH) order by RAND()")
 		if not db.rowcount:
-			logit('PBL Expire: not enough older entry to check. I will retry in a day')
+			logit('not enough older entry to check. I will retry in a day')
 			db.close()
 			time.sleep(86400)
 		else:
@@ -391,7 +391,7 @@ def pbl_expire():
 				# Todo: maybe we should be check via pblob, but Spamhaus is sensitive about HTTP requests
 				if not ip_in_pbl(ip_to_test):
 					cidr_deleted += 1
-					logit('PBL Expire: removed', CIDR, '- checked:', cidr_checked, '- deleted:', cidr_deleted)
+					logit('removed', CIDR, '- checked:', cidr_checked, '- deleted:', cidr_deleted)
 					db.execute("delete from PBL where CIDR=%s", (CIDR,))
 				else:
 					db.execute("update PBL set LASTUPDATE=CURRENT_TIMESTAMP where CIDR=%s", (CIDR,))
@@ -406,7 +406,7 @@ def rimozione_ip_vecchi():
 		db = connetto_db()
 		db.execute('delete from IP where DATE < (CURRENT_TIMESTAMP() - INTERVAL 4 MONTH)')
 		if db.rowcount != 0:
-			logit('RimozioneIP: rimossi', db.rowcount, 'IP')
+			logit('rimossi', db.rowcount, 'IP')
 		db.close()
 
 def scadenza_iptables():
@@ -419,11 +419,11 @@ def scadenza_iptables():
 		db.execute('select IP from BLOCKED where END < CURRENT_TIMESTAMP()')
 		for IP in db.fetchall():
 			if subprocess.call(['/sbin/iptables', '-D', 'fucklog', '-s', IP[0], '--protocol', 'tcp', '--dport', '25', '-j', 'DROP'], shell=False):
-				logit('DelIpTables: errore su rimozione', IP[0])
+				logit('errore su rimozione', IP[0])
 				continue
 			else:
 				db.execute('delete from BLOCKED where IP=%s', (IP[0],))
-				if Debug: logit('DelIpTables: segato', IP[0])
+				if Debug: logit('segato', IP[0])
 
 def statistiche_mrtg():
 	"""Aggiorno a cadenza fissa le statistiche per MRTG"""
@@ -461,10 +461,10 @@ def get_pbl_from_spamhaus(IP):
 			echo_command = shlex.split("echo '"+body+"'")
 			mail_command = shlex.split("mail -s 'Fucklog: %s PBL' %s" % (spob.cidr, pbl_email))
 			subprocess.Popen(mail_command, stdin=subprocess.Popen(echo_command, stdout=subprocess.PIPE).stdout, stdout=subprocess.PIPE).wait()
-		logit('PBL:',body)
+		logit(body)
 		blocca_in_iptables(spob.cidr, 1)
 	else:
-		logit('PBL: (maybe) error with IP',IP,': check if they hate me')
+		logit('(maybe) error with IP',IP,': check if they hate me')
 
 if __name__ == "__main__":
 	if True: # da fare
@@ -518,7 +518,7 @@ if __name__ == "__main__":
 		if not os.path.exists(uce_dir): # se non esiste la directory per rbl
 			os.mkdir(uce_dir)
 			print "Main: è stata creata la directory", uce_dir
-			logit("Main: è stata creata la directory", uce_dir)
+			logit("è stata creata la directory", uce_dir)
 		else:
 			if not os.path.isdir(uce_dir): # se non si tratta di una directory
 				print "Main: ",uce_dir," non è una directory. Non posso utilizzarla."
@@ -580,9 +580,9 @@ if __name__ == "__main__":
 		for opt, a in opts:
 			if opt in ('-e', '--evita-ripristino-iptables'):
 				evita_ripristino_iptables = True
-			logit("Main: avvio")
+			logit("avvio")
 		if evita_ripristino_iptables is False:
-			logit('Main: ripristino IpTables')
+			logit('ripristino IpTables')
 			if not subprocess.call(shlex.split("/sbin/iptables -L fucklog -n"), stdout=NULL): # se esiste la catena fucklog
 				subprocess.call(shlex.split("/sbin/iptables -F fucklog")) # la svuoto
 			else:
@@ -595,7 +595,7 @@ if __name__ == "__main__":
 
 	if True: # controllo validità del file di log
 		if not os.path.isfile(postfix_log_file):
-			logit("Main: log file inutilizzabile:", postfix_log_file," - Inesistente? Non è un file?")
+			logit("log file inutilizzabile:", postfix_log_file," - Inesistente? Non è un file?")
 			print "File di log inutilizzabile. Controllare", postfix_log_file
 			sys.exit(-1)
 
@@ -620,7 +620,7 @@ if __name__ == "__main__":
 	while True:
 		command = raw_input("What's up:")
 		if command == "q":
-			logit("Main: clean shutdown")
+			logit("clean shutdown")
 			for thread in elenco_thread:
 				thread.terminate()
 			file_mrtg_stats.close()
