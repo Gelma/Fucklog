@@ -335,10 +335,9 @@ def logit(*args):
 		for item in args:
 			linea_log += ' %s' % item
 
-	lock_output_log_file.acquire()
-	log_file.write(linea_log + '\n')
-	log_file.flush()
-	lock_output_log_file.release()
+	with lock_output_log_file:
+		log_file.write(linea_log + '\n')
+		log_file.flush()
 
 def nazione_dello_ip(IP):
 	"""Ricevo un IP, ne torno la nazione"""
