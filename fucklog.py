@@ -25,12 +25,6 @@ if True: # import dei moduli
 		print "Errore nell'import dei moduli specifici di Fucklog."
 		sys.exit(-1)
 
-	try: # se Psyco è installato, lo uso
-		import psyco
-		psyco.full()
-	except:
-		pass
-
 def aggiorna_cidr():
 	"""Prendo gli IP noti che ho, insieme a un po' di blacklist, meno le whitelist, e sbatto tutto in Cidr->Fucklog->MySQL"""
 
