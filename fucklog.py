@@ -267,12 +267,12 @@ def lettore():
 			fdlog_size = t_size
 			time.sleep(intervallo)
 		else: # diversamente parso quanto letto dal log
-			for REASON, regexp in enumerate(RegExps): # REASON=0 (rbl) 1 (helo) 2 (lost connection) 3 (too many errors) 4 (relay access) 5 (timeout)
-				m = regexp.match(log_line) # applico le regexp
-				if m: # se combaciano
+			for REASON, regexp in enumerate(RegExps):
+				m = regexp.match(log_line) # I try RegExps
+				if m: # if something matches
 					if REASON == 0 or REASON == 1 or REASON == 4:
-						IP, DNS, FROM, TO = m.group(2), m.group(1), m.group(3), m.group(4) # estrapolo i dati
-					else: # se quindi REASON è 2 oppure 3 oppure 5
+						IP, DNS, FROM, TO = m.group(2), m.group(1), m.group(3), m.group(4) # explode data
+					else: # so reasons is one of 2, 3, 5 or 6
 						IP, DNS, FROM, TO = m.group(2), m.group(1), None, None
 						if IP == 'unknown' or DNS != 'unknown': continue
 					if not gia_in_blocco(IP): # controllo che l'IP non sia già bloccato
@@ -541,14 +541,15 @@ if __name__ == "__main__":
 		#   PIDfile
 		pidfile          = '/var/run/fucklog.pid'
 		# RexExps
-		RegExps					= []
-		RegExpsReason			= ('rbl', 'helo', 'lost', 'many errors', 'norelay', 'timeout')
+		RegExps 	= []
+		RegExpsReason	= ('rbl', 'helo', 'lost', 'many errors', 'norelay', 'timeout', '5.1.1')
 		RegExps.append(re.compile('.*RCPT from (.*)\[(.*)\]:.*blocked using.*from=<(.*)> to=<(.*)> proto')) # RBL
 		RegExps.append(re.compile('.*NOQUEUE: reject: RCPT from (.*)\[(.*)\].*Helo command rejected: need fully-qualified hostname; from=<(.*)> to=<(.*)> proto')) # broken helo
 		RegExps.append(re.compile('.*\[postfix/smtpd\] lost connection after .* from (.*)\[(.*)\]')) # lost connection
 		RegExps.append(re.compile('.*\[postfix/smtpd\] too many errors after .* from (.*)\[(.*)\]')) # too many errors
 		RegExps.append(re.compile('.*RCPT from (.*)\[(.*)\].*Relay access denied.*from=<(.*)> to=<(.*)> proto')) # rely access denied
 		RegExps.append(re.compile('.*\[postfix/smtpd\] timeout after .* from (.*)\[(.*)\]')) # timeout
+		RegExps.append(re.compile('.*NOQUEUE: reject: RCPT from (.*)\[(.*)\]: 550 5.1.1 .* Recipient address rejected: User unknown in virtual alias table; from=<(.*)> to=<(.*)> proto')) # '5.1.1'
 
 		NULL = open("/dev/null", "w")
 
