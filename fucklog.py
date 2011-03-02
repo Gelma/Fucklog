@@ -270,11 +270,11 @@ def lettore():
 			for REASON, regexp in enumerate(RegExps):
 				m = regexp.match(log_line) # I try RegExps
 				if m: # if something matches
-					if REASON == 0 or REASON == 1 or REASON == 4:
-						IP, DNS, FROM, TO = m.group(2), m.group(1), m.group(3), m.group(4) # explode data
-					else: # so reasons is one of 2, 3, 5 or 6
+					try: # explode data
+						IP, DNS, FROM, TO = m.group(2), m.group(1), m.group(3), m.group(4)
+					except: # if lacking info
 						IP, DNS, FROM, TO = m.group(2), m.group(1), None, None
-						if IP == 'unknown' or DNS != 'unknown': continue
+					if IP == 'unknown' or DNS != 'unknown': continue
 					if not gia_in_blocco(IP): # controllo che l'IP non sia già bloccato
 						if Debug: logit(IP, 'non bloccato')
 						if DNS == 'unknown': DNS = None
