@@ -542,14 +542,14 @@ if __name__ == "__main__":
 		pidfile          = '/var/run/fucklog.pid'
 		# RexExps
 		RegExps 	= []
-		RegExpsReason	= ('rbl', 'helo', 'lost', 'many errors', 'norelay', 'timeout', '5.1.1')
-		RegExps.append(re.compile('.*RCPT from (.*)\[(.*)\]:.*blocked using.*from=<(.*)> to=<(.*)> proto')) # RBL
-		RegExps.append(re.compile('.*NOQUEUE: reject: RCPT from (.*)\[(.*)\].*Helo command rejected: need fully-qualified hostname; from=<(.*)> to=<(.*)> proto')) # broken helo
-		RegExps.append(re.compile('.*\[postfix/smtpd\] lost connection after .* from (.*)\[(.*)\]')) # lost connection
-		RegExps.append(re.compile('.*\[postfix/smtpd\] too many errors after .* from (.*)\[(.*)\]')) # too many errors
-		RegExps.append(re.compile('.*RCPT from (.*)\[(.*)\].*Relay access denied.*from=<(.*)> to=<(.*)> proto')) # rely access denied
-		RegExps.append(re.compile('.*\[postfix/smtpd\] timeout after .* from (.*)\[(.*)\]')) # timeout
-		RegExps.append(re.compile('.*NOQUEUE: reject: RCPT from (.*)\[(.*)\]: 550 5.1.1 .* Recipient address rejected: User unknown in virtual alias table; from=<(.*)> to=<(.*)> proto')) # '5.1.1'
+		RegExpsReason	= ('5.7.1 (RBL)', '5.5.2 (HELO)', 'LOSTCONN', 'ERRORS', '5.7.1 (RELAY)', 'TIMEOUT', '5.1.1 (USER)')
+		RegExps.append(re.compile('.*RCPT from (.*)\[(.*)\]:.*blocked using.*from=<(.*)> to=<(.*)> proto'))
+		RegExps.append(re.compile('.*NOQUEUE: reject: RCPT from (.*)\[(.*)\].*Helo command rejected: need fully-qualified hostname; from=<(.*)> to=<(.*)> proto'))
+		RegExps.append(re.compile('.*\[postfix/smtpd\] lost connection after .* from (.*)\[(.*)\]'))
+		RegExps.append(re.compile('.*\[postfix/smtpd\] too many errors after .* from (.*)\[(.*)\]'))
+		RegExps.append(re.compile('.*RCPT from (.*)\[(.*)\].*Relay access denied.*from=<(.*)> to=<(.*)> proto'))
+		RegExps.append(re.compile('.*\[postfix/smtpd\] timeout after .* from (.*)\[(.*)\]'))
+		RegExps.append(re.compile('.*NOQUEUE: reject: RCPT from (.*)\[(.*)\]: 550 5.1.1 .* Recipient address rejected: User unknown in virtual alias table; from=<(.*)> to=<(.*)> proto'))
 
 		NULL = open("/dev/null", "w")
 
