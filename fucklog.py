@@ -323,6 +323,7 @@ def lettore():
 						if Debug: logit(IP, 'bloccato con moltiplicatore', bloccalo_per)
 						blocca_in_iptables(indirizzo_da_bloccare, bloccalo_per)
 						logit(indirizzo_da_bloccare, '|', bloccalo_per, '|', DNS, '|', FROM, '|', TO, '|', RegExpsReason[REASON])
+					break # we stop to try RegExps after first match
 
 def logit(*args):
 	"""I receive strings/iterable objects, convert them to text and put in logfile."""
