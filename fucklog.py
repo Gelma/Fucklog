@@ -266,15 +266,21 @@ def lettore():
 				fdlog_inode = t_inode
 			fdlog_size = t_size
 			time.sleep(intervallo)
-		else: # diversamente parso quanto letto dal log
-			for REASON, regexp in enumerate(RegExps):
-				m = regexp.match(log_line) # I try RegExps
+		else:
+			for REASON, regexp in enumerate(RegExps): # I try all RegExps
+				m = regexp.match(log_line)
+				logit('RegExps controllata', RegExpsReason[REASON], log_line)
 				if m: # if something matches
-					try: # explode data
+					logit('RegExps becca regola',RegExpsReason[REASON])
+					if REASON in (0, 1, 4):
 						IP, DNS, FROM, TO = m.group(2), m.group(1), m.group(3), m.group(4)
-					except: # if lacking info
+					elif REASON in (2, 3, 5, 6):
 						IP, DNS, FROM, TO = m.group(2), m.group(1), None, None
-					if IP == 'unknown' or DNS != 'unknown': continue
+						if DNS != 'unknown': # we won't stop IP with reverse lookup on these rules
+							continue     # we could match/block the good ones
+					if IP == 'unknown':
+						logit('RegExps','tralascio per IP unknown',log_line)
+						continue
 					if not gia_in_blocco(IP): # controllo che l'IP non sia già bloccato
 						if Debug: logit(IP, 'non bloccato')
 						if DNS == 'unknown': DNS = None
@@ -522,20 +528,20 @@ if __name__ == "__main__":
 				print "Main: ",uce_dir," non è una directory. Non posso utilizzarla."
 				sys.exit(-1)
 		ore_di_blocco    = configurazione.getint('Generali', 'ore_di_blocco')
-		#   GeoIP
+		# GeoIP
 		geoip_db_file	 = configurazione.get('Generali', 'geoip_db_file')
 		try:
 			geoip_db     = pygeoip.GeoIP(geoip_db_file)
 		except:
 			geoip_db     = False
-		#   MRTG
+		# MRTG
 		file_mrtg		 = configurazione.get('Generali', 'mrtg_file')
 		try:
 			file_mrtg_stats	 = open(file_mrtg, 'w')
 		except:
 			print "Main: impossibile creare il file per MRTG:",file_mrtg_stats
 			sys.exit(-1)
-		#   PBL
+		# PBL
 		pbl_email        = configurazione.get('Generali', 'pbl_email')
 		pbl_url          = configurazione.get('Generali', 'pbl_url')
 		#   PIDfile
