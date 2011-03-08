@@ -267,11 +267,11 @@ def lettore():
 			fdlog_size = t_size
 			time.sleep(intervallo)
 		else:
+			if '[postfix/smtpd]' != log_line[16:31]: # A quick check to avoid non-Postfix log
+				continue
 			for REASON, regexp in enumerate(RegExps): # I try all RegExps
 				m = regexp.match(log_line)
-				logit('RegExps controllata', RegExpsReason[REASON], log_line)
 				if m: # if something matches
-					logit('RegExps becca regola',RegExpsReason[REASON])
 					if REASON in (0, 1, 4):
 						IP, DNS, FROM, TO = m.group(2), m.group(1), m.group(3), m.group(4)
 					elif REASON in (2, 3, 5, 6):
@@ -279,7 +279,6 @@ def lettore():
 						if DNS != 'unknown': # we won't stop IP with reverse lookup on these rules
 							continue     # we could match/block the good ones
 					if IP == 'unknown':
-						logit('RegExps','tralascio per IP unknown',log_line)
 						continue
 					if not gia_in_blocco(IP): # controllo che l'IP non sia già bloccato
 						if Debug: logit(IP, 'non bloccato')
@@ -547,7 +546,7 @@ if __name__ == "__main__":
 		pbl_url          = configurazione.get('Generali', 'pbl_url')
 		#   PIDfile
 		pidfile          = '/var/run/fucklog.pid'
-		# RexExps
+		# RexExps. Adding RegExp: be aware in lettore() we just look for line matching '[postfix/smtpd]'
 		RegExps 	= []
 		RegExpsReason	= ('5.7.1 (RBL)', '5.5.2 (HELO)', 'LOSTCONN', 'ERRORS', '5.7.1 (RELAY)', 'TIMEOUT', '5.1.1 (USER)')
 		RegExps.append(re.compile('.*RCPT from (.*)\[(.*)\]:.*blocked using.*from=<(.*)> to=<(.*)> proto'))
