@@ -550,7 +550,7 @@ if __name__ == "__main__":
 		RegExps.append(re.compile('.*RCPT from (.*)\[(.*)\].*Relay access denied.*from=<(.*)> to=<(.*)> proto'))
 		RegExps.append(re.compile('.*\[postfix/smtpd\] timeout after .* from (.*)\[(.*)\]'))
 		RegExps.append(re.compile('.*NOQUEUE: reject: RCPT from (.*)\[(.*)\]: 550 5.1.1 .* Recipient address rejected: User unknown in virtual alias table; from=<(.*)> to=<(.*)> proto'))
-
+		# for subprocess
 		NULL = open("/dev/null", "w")
 
 	if True: # controllo degli eseguibili necessari
