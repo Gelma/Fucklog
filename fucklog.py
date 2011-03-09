@@ -276,9 +276,9 @@ def lettore():
 						IP, DNS, FROM, TO = m.group(2), m.group(1), m.group(3), m.group(4)
 					elif REASON in (2, 3, 5, 6, 7):
 						if REASON in (6, 7):
-							IP, DNS, FROM, TO = m.group(2), m.group(1), None, None
-						else:
 							IP, DNS, FROM, TO = m.group(2), m.group(1), m.group(3), m.group(4)
+						else:
+							IP, DNS, FROM, TO = m.group(2), m.group(1), None, None
 						if DNS != 'unknown': # we won't stop IP with reverse lookup on these rules
 							break        # we could match/block the good ones
 					if IP == 'unknown':
