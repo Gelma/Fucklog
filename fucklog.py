@@ -274,7 +274,7 @@ def lettore():
 				if m: # if something matches
 					if REASON in (0, 1, 4):
 						IP, DNS, FROM, TO = m.group(2), m.group(1), m.group(3), m.group(4)
-					elif REASON in (2, 3, 5, 6):
+					elif REASON in (2, 3, 5, 6, 7):
 						IP, DNS, FROM, TO = m.group(2), m.group(1), None, None
 						if DNS != 'unknown': # we won't stop IP with reverse lookup on these rules
 							break        # we could match/block the good ones
@@ -548,7 +548,7 @@ if __name__ == "__main__":
 		pidfile          = '/var/run/fucklog.pid'
 		# RexExps. Adding RegExp: be aware in lettore() we just look for line matching '[postfix/smtpd]'
 		RegExps 	= []
-		RegExpsReason	= ('5.7.1 (RBL)', '5.5.2 (HELO)', 'LOSTCONN', 'ERRORS', '5.7.1 (RELAY)', 'TIMEOUT', '5.1.1 (USER)')
+		RegExpsReason	= ('5.7.1 (RBL)', '5.5.2 (HELO)', 'LOSTCONN', 'ERRORS', '5.7.1 (RELAY)', 'TIMEOUT', '5.1.1 (USER)', '4.2.0 (GREY)')
 		RegExps.append(re.compile('.*RCPT from (.*)\[(.*)\]:.*blocked using.*from=<(.*)> to=<(.*)> proto'))
 		RegExps.append(re.compile('.*NOQUEUE: reject: RCPT from (.*)\[(.*)\].*Helo command rejected: need fully-qualified hostname; from=<(.*)> to=<(.*)> proto'))
 		RegExps.append(re.compile('.*\[postfix/smtpd\] lost connection after .* from (.*)\[(.*)\]'))
@@ -556,6 +556,7 @@ if __name__ == "__main__":
 		RegExps.append(re.compile('.*RCPT from (.*)\[(.*)\].*Relay access denied.*from=<(.*)> to=<(.*)> proto'))
 		RegExps.append(re.compile('.*\[postfix/smtpd\] timeout after .* from (.*)\[(.*)\]'))
 		RegExps.append(re.compile('.*NOQUEUE: reject: RCPT from (.*)\[(.*)\]: 550 5.1.1 .* Recipient address rejected: User unknown in virtual alias table; from=<(.*)> to=<(.*)> proto'))
+		RegExps.append(re.compile('.*NOQUEUE: reject: RCPT from (.*)\[(.*)\]: 450 4.2.0 .* from=<(.*)> to=<(.*)> proto'))
 		# for subprocess
 		NULL = open("/dev/null", "w")
 
