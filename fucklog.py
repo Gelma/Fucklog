@@ -231,7 +231,10 @@ def ip_gia_in_cidr(IP):
 def ip_in_pbl(IP):
 	"""Accetto un IP. Torno Url/False se l'IP è in PBL"""
 
-	qstr = "%s.pbl.spamhaus.org." % '.'.join(reversed(IP.split('.'))) # Giro IP: 1.2.3.4 -> 4.3.2.1
+	try:
+		qstr = "%s.pbl.spamhaus.org." % '.'.join(reversed(IP.split('.'))) # Giro IP: 1.2.3.4 -> 4.3.2.1
+	except:
+		logit('Error', 'IP type', type(IP), 'IP print', IP)
 	try:
 		qa = dns.resolver.query(qstr, 'TXT')
 	except dns.exception.DNSException:
