@@ -84,6 +84,13 @@ def update_cidr():
 	logit('completato in', time.time() - cronometro, 'secondi')
 	lock_cidr.release()
 
+def auto_update_cidr():
+	"""Every 24h I force an update_cidr()"""
+
+	while True:
+		time.sleep(60*60*24)
+		update_cidr()
+
 def blocca_in_iptables(indirizzo_da_bloccare, bloccalo_per):
 	"""Ricevo IP e numero di giorni. Metto in IPTables e aggiorno Blocked->Fucklog->Mysql"""
 
@@ -437,7 +444,7 @@ if __name__ == "__main__":
 		Debug			 = configurazione.getint('Generali', 'debug')
 		output_log_file	 = configurazione.get('Generali', 'log_file')
 		try:
-			log_file		 = open(output_log_file, 'a')
+			log_file = open(output_log_file, 'a')
 		except:
 			print "Main: non posso creare il file di log: ",log_file
 			sys.exit(-1)
@@ -459,11 +466,11 @@ if __name__ == "__main__":
 		# GeoIP
 		geoip_db_file	 = configurazione.get('Generali', 'geoip_db_file')
 		try:
-			geoip_db     = pygeoip.GeoIP(geoip_db_file)
+			geoip_db = pygeoip.GeoIP(geoip_db_file)
 		except:
-			geoip_db     = False
+			geoip_db = False
 		# MRTG
-		file_mrtg		 = configurazione.get('Generali', 'mrtg_file')
+		file_mrtg 	 = configurazione.get('Generali', 'mrtg_file')
 		try:
 			file_mrtg_stats	 = open(file_mrtg, 'w')
 		except:
@@ -536,6 +543,7 @@ if __name__ == "__main__":
 	if True: # partenza dei thread
 		elenco_thread = []
 		threads = [
+			auto_update_cidr,
 			pbl_expire,
 			pbl_latest_check,
 			rimozione_ip_vecchi,
