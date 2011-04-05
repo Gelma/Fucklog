@@ -441,8 +441,6 @@ if __name__ == "__main__":
 		except:
 			print "Main: non posso creare il file di log: ",log_file
 			sys.exit(-1)
-		uce_ore, \
-		uce_minuti       = configurazione.get('Generali', 'aggiorna_uce').split(":")
 		uce_dir          = configurazione.get('Generali', 'uce_dir')
 		if not uce_dir.startswith('/'):
 			print "Main: il percordo di uce_dir",uce_dir,"deve essere assoluto"
