@@ -26,7 +26,7 @@ if True: # import dei moduli
 		sys.exit(-1)
 
 def aggiorna_cidr():
-	"""Prendo gli IP noti che ho, insieme a un po' di blacklist, meno le whitelist, e sbatto tutto in Cidr->Fucklog->MySQL"""
+	"""I use white/blacklist with collected IPs to populate known bad Cidr->Fucklog->MySQL"""
 
 	if not lock_cidr.acquire(0):
 		logit('aggiornamento già in esecuzione, tralascio.')
@@ -43,32 +43,6 @@ def aggiorna_cidr():
 		for line in db.fetchall():
 			tmpfd.write(line[0]+'\n')
 
-	if os.path.isfile(uce_dir+'spamcannibal.org'):
-		with open(uce_dir+'spamcannibal.org', 'r') as tmpfdinput: # esporto spamcannibal in CIDR
-			for line in tmpfdinput:
-				ip = line.split()[0]
-				try:
-					netaddr.IPGlob(ip)
-				except:
-					continue
-				for cidr in netaddr.glob_to_cidrs(ip):
-					tmpfd.write('%s\n' % cidr)
-
-	if os.path.isfile(uce_dir+'antispam.imp.ch.txt'):
-		with open(uce_dir+'antispam.imp.ch.txt', 'r') as tmpfdinput: # estraggo IP da antispam.imp.ch.txt
-			for line in tmpfdinput:
-				try: # provo a prendere il secondo elemento di ogni riga
-					ip = line.split()[1]
-				except:
-					continue
-				if ip == '0.0.0.0': # elimino il temibile 0.0.0.0
-					continue
-				try:
-					netaddr.IPAddres(ip)
-				except:
-					continue
-				tmpfd.write('%s\n' % ip)
-
 	tmpfd.close() # chiudo tmp-blacklist
 
 	tmpfd=open(uce_dir+'tmp-whitelist','w') # genero whitelist con classi private
@@ -77,13 +51,9 @@ def aggiorna_cidr():
 	tmpfd.close()
 
 	# raccatto le eventuali whitelist disponibili in giro
-	for whitelist in [uce_dir+'ips.whitelisted.org', uce_dir+'dnswl_white_list.txt', uce_dir+'swinog-dnsrbl-whitelist', '/etc/postfix/whitelistip']:
+	for whitelist in ['/etc/postfix/whitelistip']:
 		if os.path.isfile(whitelist):
 			subprocess.call(shlex.split('/bin/cat '+whitelist), stdout=open(uce_dir+'tmp-whitelist', 'a'))
-
-	file_rbl = '' # preparo gli argomenti per il cat successivo
-	for rbl in ['tmp-blacklist ','dnsbl-1.uceprotect.net ', 'dnsbl-2.uceprotect.net ', 'cbl.abuseat.org ', 'psbl.txt ', 'unsubscore.com ']:
-		file_rbl = uce_dir+rbl+file_rbl
 
 	lista_cidrs_nuovi = set() # preparo l'elenco dei nuovi IP
 	for line in os.popen('/bin/cat '+file_rbl+' | ./cidrmerge '+uce_dir+'tmp-whitelist'):
@@ -113,56 +83,6 @@ def aggiorna_cidr():
 	db.close()
 	logit('completato in', time.time() - cronometro, 'secondi')
 	lock_cidr.release()
-
-def aggiorna_blacklist():
-	"""Aggiorno le blacklist disponibili una volta al giorno"""
-
-	while True:
-		dormi_fino_alle(uce_ore, uce_minuti)
-		logit('inizio aggiornamento')
-
-		uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd rsync-mirrors.uceprotect.net::RBLDNSD-ALL/ '+uce_dir)
-		if subprocess.call(uce_rsync):
-			logit('errore rsync UceProtect.net')
-
-		uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd psbl-mirror.surriel.com::psbl/psbl.txt '+uce_dir+'psbl.txt')
-		if subprocess.call(uce_rsync):
-			logit('errore rsync surriel.com')
-
-		uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd rsync://rsync.cbl.abuseat.org/cbl/list.txt '+uce_dir+'cbl.abuseat.org')
-		if subprocess.call(uce_rsync):
-			logit('errore rsync abuseat.org')
-
-		uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd rsync.spamcannibal.org::zonefiles/bl.spamcannibal.org.in.ip4set.rbl '+uce_dir+'spamcannibal.org')
-		if subprocess.call(uce_rsync):
-			logit('errore rsync spamcannibal')
-
-		try:
-			os.remove(uce_dir+'drop.lasso')
-		except:
-			pass
-		if subprocess.call(shlex.split("/usr/bin/wget -q 'http://www.spamhaus.org/drop/drop.lasso' -O "+uce_dir+'drop.lasso')):
-			logit('errore wget lasso')
-
-		try:
-			os.remove(uce_dir+'antispam.imp.ch.txt')
-		except:
-			pass
-		if subprocess.call(shlex.split("/usr/bin/wget -q 'http://antispam.imp.ch/spamlist' -O "+uce_dir+'antispam.imp.ch.txt')):
-			logit('errore wget antispam.imp.ch')
-
-		try:
-			os.remove(uce_dir+'swinog-dnsrbl-whitelist')
-		except:
-			pass
-		if subprocess.call(shlex.split("/usr/bin/wget -q 'http://antispam.imp.ch/swinog-dnsrbl-whitelist' -O "+uce_dir+'swinog-dnsrbl-whitelist')):
-			logit('errore wget swinog-dnsrbl-whitelist')
-
-		uce_rsync = shlex.split('/usr/bin/rsync -aqz --no-motd rsync://rsync.unsubscore.com/LBBL/blacklist.txt '+uce_dir+'unsubscore.com')
-		if subprocess.call(uce_rsync):
-			logit('errore rsync unsubscore.com')
-
-		aggiorna_cidr()
 
 def blocca_in_iptables(indirizzo_da_bloccare, bloccalo_per):
 	"""Ricevo IP e numero di giorni. Metto in IPTables e aggiorno Blocked->Fucklog->Mysql"""
@@ -618,7 +538,6 @@ if __name__ == "__main__":
 	if True: # partenza dei thread
 		elenco_thread = []
 		threads = [
-			aggiorna_blacklist,
 			pbl_expire,
 			pbl_latest_check,
 			rimozione_ip_vecchi,
