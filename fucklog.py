@@ -25,7 +25,7 @@ if True: # import dei moduli
 		print "Errore nell'import dei moduli specifici di Fucklog."
 		sys.exit(-1)
 
-def aggiorna_cidr():
+def update_cidr():
 	"""I use white/blacklist with collected IPs to populate known bad Cidr->Fucklog->MySQL"""
 
 	if not lock_cidr.acquire(0):
@@ -565,10 +565,10 @@ if __name__ == "__main__":
 			sys.exit()
 		if command == "a":
 			print "aggiornamento Cidr"
-			aggiorna_cidr()
+			update_cidr()
 		if command == 'e':
 			print 'I block all Cidr for a week'
-			aggiorna_cidr()
+			update_cidr()
 			block_all_cidr()
 		if command == "h":
 			print "Help:\n\tq: quit\n\ta: Aggiorna Cidr\n\te: block all CIDRs for a week\n"
