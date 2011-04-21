@@ -178,7 +178,7 @@ def lettore():
     """Leggo regolarmente il log di Postfix, e smazzo gli IP che trovo"""
 
     global db
-	smtp_to_spamtrap = {}
+    smtp_to_spamtrap = {}
 
     fdlog = open(postfix_log_file, "r")
     fdlog_stat = os.stat(postfix_log_file)
