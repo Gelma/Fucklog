@@ -56,7 +56,7 @@ def update_cidr():
             subprocess.call(shlex.split('/bin/cat '+whitelist), stdout=open(uce_dir+'tmp-whitelist', 'a'))
 
     lista_cidrs_nuovi = set() # preparo l'elenco dei nuovi IP
-    for line in os.popen('/bin/cat '+file_rbl+' | ./cidrmerge '+uce_dir+'tmp-whitelist'):
+    for line in os.popen('/bin/cat '+uce_dir+'tmp-blacklist'+' | ./cidrmerge '+uce_dir+'tmp-whitelist'):
         line = line[:-1]
         if not line.endswith('/32'):
             lista_cidrs_nuovi.add(line)
