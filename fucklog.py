@@ -218,10 +218,10 @@ def lettore():
                                         smtp_to_spamtrap[IP] += 1
                                 except:
                                         smtp_to_spamtrap[IP]  = 1
-                                if not gia_in_blocco(IP):
-                                        if smtp_to_spamtrap[IP] > 9:
+                                if smtp_to_spamtrap[IP] == 9:
+                                        if not gia_in_blocco(IP):
                                                 blocca_in_iptables(IP, 1)
-                                                logit('Check:',indirizzo_da_bloccare, '|', bloccalo_per, '|', DNS, '|', FROM, '|', TO, '|', RegExpsReason[REASON])
+                                                logit('Check:',IP , '|', DNS, '|', FROM, '|', TO, '|', RegExpsReason[REASON])
                                                 continue
                         else:
                             IP, DNS, FROM, TO = m.group(2), m.group(1), None, None
