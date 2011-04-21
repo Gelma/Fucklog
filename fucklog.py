@@ -198,7 +198,7 @@ def lettore():
                 fdlog.close()
                 fdlog = open(postfix_log_file, "r")
                 fdlog_inode = t_inode
-				smtp_to_spamtrap = {}
+                smtp_to_spamtrap = {}
             fdlog_size = t_size
             time.sleep(intervallo)
         else:
@@ -280,7 +280,7 @@ def logit(*args):
     except:
         caller = ''
 
-    linea_log = datetime.datetime.now().strftime('%H:%M:%S') + ' (' + caller + '): '
+    linea_log = datetime.datetime.now().strftime('%H:%M:%S') + ' (' + caller + '):'
 
     try:
         linea_log += ' '.join(args)
@@ -470,7 +470,7 @@ if __name__ == "__main__":
         # Generali
         Debug            = configurazione.getint('Generali', 'debug')
         output_log_file  = configurazione.get('Generali', 'log_file')
-		smtp_to_spamtrap = {}
+        smtp_to_spamtrap = {}
         try:
             log_file = open(output_log_file, 'a')
         except:
