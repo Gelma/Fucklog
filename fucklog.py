@@ -198,6 +198,7 @@ def lettore():
                 fdlog.close()
                 fdlog = open(postfix_log_file, "r")
                 fdlog_inode = t_inode
+				smtp_to_spamtrap = {}
             fdlog_size = t_size
             time.sleep(intervallo)
         else:
@@ -211,6 +212,16 @@ def lettore():
                     elif REASON in (2, 3, 5, 6, 7):
                         if REASON in (6, 7):
                             IP, DNS, FROM, TO = m.group(2), m.group(1), m.group(3), m.group(4)
+                            if REASON == 6: # try to catch legit SMTP server sending lots of spam to spamtrap
+                                try:
+                                        smtp_to_spamtrap[IP] += 1
+                                except:
+                                        smtp_to_spamtrap[IP]  = 1
+                                if not gia_in_blocco(IP):
+                                        if smtp_to_spamtrap[IP] > 9:
+                                                blocca_in_iptables(IP, 1)
+                                                logit('Check:',indirizzo_da_bloccare, '|', bloccalo_per, '|', DNS, '|', FROM, '|', TO, '|', RegExpsReason[REASON])
+                                                continue
                         else:
                             IP, DNS, FROM, TO = m.group(2), m.group(1), None, None
                         if DNS != 'unknown': # we won't stop IP with reverse lookup on these rules
@@ -459,6 +470,7 @@ if __name__ == "__main__":
         # Generali
         Debug            = configurazione.getint('Generali', 'debug')
         output_log_file  = configurazione.get('Generali', 'log_file')
+		smtp_to_spamtrap = {}
         try:
             log_file = open(output_log_file, 'a')
         except:
@@ -524,7 +536,7 @@ if __name__ == "__main__":
                 sys.exit(-1)
             else:
                 print "Main: stale pidfile rimosso."
-        file(pidfile,'w').write(str(os.getpid()))   # controllare se resta il fd aperto
+        file(pidfile,'w').write(str(os.getpid()))
 
     if True: # avvio e ripristino delle regole di IpTables
         try:
