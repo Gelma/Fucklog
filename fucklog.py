@@ -221,10 +221,10 @@ def lettore():
 								if smtp_to_spamtrap[IP] == 9:
 										if not gia_in_blocco(IP):
 												blocca_in_iptables(IP, 1)
-												logit(IP, '|', DNS, '|', FROM, '|', TO, '|', RegExpsReason[REASON])
+												logit(IP, '|', DNS, '|', FROM, '|', TO, '|', RegExpsReason[REASON]+' spamtrap')
 												continue
 								else:
-										logit('(Alert)',IP , '('+str(smtp_to_spamtrap[IP])+')', '|', DNS, '|', FROM, '|', TO, '|', RegExpsReason[REASON])
+										logit('(Alert)',IP , '('+str(smtp_to_spamtrap[IP])+')', '|', DNS, '|', FROM, '|', TO, '|', RegExpsReason[REASON]+' spamtrap')
 						else:
 							IP, DNS, FROM, TO = m.group(2), m.group(1), None, None
 						if DNS != 'unknown': # we won't stop IP with reverse lookup on these rules
