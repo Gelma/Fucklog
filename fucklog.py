@@ -524,9 +524,9 @@ if __name__ == "__main__":
         NULL = open("/dev/null", "w")
 
     if True: # controllo degli eseguibili necessari
-        for cmd in ['/usr/bin/rsync','/usr/bin/wget','./cidrmerge']:
+        for cmd in ['/usr/bin/wget','./cidrmerge']:
             if not os.path.isfile(cmd):
-                print "Main: necessito di",cmd
+                print "Main: I can't find",cmd
                 sys.exit(-1)
 
     if True: # controllo istanze attive
