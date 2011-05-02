@@ -224,7 +224,7 @@ def lettore():
 												logit(IP, '|', DNS, '|', FROM, '|', TO, '|', RegExpsReason[REASON])
 												continue
 								else:
-										logit(' (Alert)',IP, '(', smtp_to_spamtrap[IP], ')', '|', DNS, '|', FROM, '|', TO, '|', RegExpsReason[REASON])
+										logit('(Alert)',IP , '('+str(smtp_to_spamtrap[IP])+')', '|', DNS, '|', FROM, '|', TO, '|', RegExpsReason[REASON])
 						else:
 							IP, DNS, FROM, TO = m.group(2), m.group(1), None, None
 						if DNS != 'unknown': # we won't stop IP with reverse lookup on these rules
