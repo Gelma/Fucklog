@@ -1,6 +1,9 @@
 #!/usr/bin/python
 import urllib2
 import re
+import socket
+
+socket.setdefaulttimeout(60) # Set timeout connection for urllib2
 
 class sphPBL:
 	"""Give me an IP, I'll give you back its complete Spamhaus PBL cidr"""
