@@ -259,7 +259,12 @@ def lettore():
 						else: # se non ricado in nessuna classe nota, opero sulla singola voce
 							if ip_in_pbl(IP): # se risulta in PBL, ma non nelle CIDR, interrogo spamhaus
 								if Debug: logit(IP, 'in PBL. Looking for complete CIDR.')
-								get_pbl_from_spamhaus(IP)
+								try:
+										get_pbl_from_spamhaus(IP)
+								except: # Fix this terrible hack
+										os.sleep(300)
+										logit(' (warn) failed Spamhaus query for', IP)
+										get_pbl_from_spamhaus(IP)
 							db.execute('select COUNTER from IP where IP=INET_ATON(%s)', (IP,)) # ricavo fino a quando bloccarlo
 							if db.rowcount:
 								bloccalo_per = db.fetchone()[0] + 1
