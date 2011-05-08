@@ -262,7 +262,7 @@ def lettore():
 								try:
 										get_pbl_from_spamhaus(IP)
 								except: # Fix this terrible hack
-										os.sleep(300)
+										time.sleep(300)
 										logit(' (warn) failed Spamhaus query for', IP)
 										get_pbl_from_spamhaus(IP)
 							db.execute('select COUNTER from IP where IP=INET_ATON(%s)', (IP,)) # ricavo fino a quando bloccarlo
