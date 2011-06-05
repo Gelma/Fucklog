@@ -220,8 +220,10 @@ def lettore():
 										smtp_to_spamtrap[IP]  = 1
 								if smtp_to_spamtrap[IP] == 9:
 										if not gia_in_blocco(IP):
-												blocca_in_iptables(IP, 1)
+												blocca_in_iptables(IP, 6)
 												logit(IP, '|', DNS, '|', FROM, '|', TO, '|', RegExpsReason[REASON]+' spamtrap')
+												body = 'SMTP: %s - %s' % (DNS, IP)
+												send_email_pbl(body) # This is not about PBL. Anyway...
 												continue
 								else:
 										logit('(Alert)',IP , '('+str(smtp_to_spamtrap[IP])+')', '|', DNS, '|', FROM, '|', TO, '|', RegExpsReason[REASON]+' spamtrap')
@@ -422,7 +424,7 @@ def send_email_pbl(body):
 		server.sendmail(header_from, header_to, msg)
 		server.quit()
 	except:
-		logit('Impossible to send email notification')
+		logit('Error: unable to send email notification')
 
 def get_pbl_from_spamhaus(IP):
 	"""Give me an IP, I'll give you back its complete Spamhaus PBL cidr"""
