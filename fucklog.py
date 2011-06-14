@@ -214,6 +214,7 @@ def lettore():
 						if REASON in (6, 7):
 							IP, DNS, FROM, TO = m.group(2), m.group(1), m.group(3), m.group(4)
 							if REASON == 6: # try to catch legit SMTP server sending lots of spam to spamtrap
+								country = nazione_dello_ip(IP)
 								try:
 										smtp_to_spamtrap[IP] += 1
 								except:
@@ -221,12 +222,12 @@ def lettore():
 								if smtp_to_spamtrap[IP] == 9:
 										if not gia_in_blocco(IP):
 												blocca_in_iptables(IP, 6)
-												logit(IP, '|', DNS, '|', FROM, '|', TO, '|', RegExpsReason[REASON]+' spamtrap')
-												body = 'SMTP: %s - %s' % (DNS, IP)
+												logit(IP, '|', country, DNS, '|', FROM, '|', TO, '|', RegExpsReason[REASON]+' spamtrap')
+												body = 'SMTP: %s - %s - %s' % (country, DNS, IP)
 												send_email_pbl(body) # This is not about PBL. Anyway...
 												continue
 								else:
-										logit('(Alert)',IP , '('+str(smtp_to_spamtrap[IP])+')', '|', DNS, '|', FROM, '|', TO, '|', RegExpsReason[REASON]+' spamtrap')
+										logit('(Alert)', IP, country, '('+str(smtp_to_spamtrap[IP])+')', '|', DNS, '|', FROM, '|', TO, '|', RegExpsReason[REASON]+' spamtrap')
 						else:
 							IP, DNS, FROM, TO = m.group(2), m.group(1), None, None
 						if DNS != 'unknown': # we won't stop IP with reverse lookup on these rules
