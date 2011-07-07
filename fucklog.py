@@ -6,14 +6,12 @@ if True: # import dei moduli
         import ConfigParser, datetime, getopt, inspect, multiprocessing, os, random, re, shlex, subprocess, sys, time, urllib
     except:
         import sys
-        print "Errore nell'import dei moduli standard. Versione troppo vecchia dell'interprete?"
-        sys.exit(-1)
+        sys.exit("Main: troubles importing standard modules. Check your Python release?")
 
     try: # quelli esterni
         import MySQLdb
     except:
-        print """Manca il package MySQLdb (mysql-python.sourceforge.net). Debian/Ubuntu: apt-get install python-mysqldb"""
-        sys.exit(-1)
+        sys.exit("Main: I need MySQLdb package (mysql-python.sourceforge.net). Debian/Ubuntu: apt-get install python-mysqldb")
 
     try: # quelli inclusi in Fucklog
         import netaddr          # Versione 0.7.5
@@ -22,8 +20,7 @@ if True: # import dei moduli
         import dns.reversename  # Versione 1.8.0 di DnsPython.org
         import pblob
     except:
-        print "Errore nell'import dei moduli specifici di Fucklog."
-        sys.exit(-1)
+        sys.exit("Main: troubles importing my packages.")
 
 def update_cidr():
     """I use white/blacklist with collected IPs to populate known bad Cidr->Fucklog->MySQL"""
@@ -122,10 +119,9 @@ def connetto_db():
     try:
         return MySQLdb.connect(host=mysql_host, user=mysql_user, passwd=mysql_passwd, db=mysql_db).cursor()
     except:
-        print "Fottuta la connessione al DB"
-        logit("errore nella connesione")
+        logit("Lost DB connection. I guess a MySQL restart...")
         time.sleep(5)
-        sys.exit(-1)
+        sys.exit("Lost DB connection. I guess a MySQL restart...")
 
 def dormi_fino_alle(ore, minuti):
     """Ricevo un orario nel formato h:m, e dormo fino ad allora"""
@@ -227,7 +223,7 @@ def lettore():
                                                 send_email_pbl(body) # This is not about PBL. Anyway...
                                                 continue
                                 else:
-                                        logit('(Alert)', IP, country, '('+str(smtp_to_spamtrap[IP])+')', '|', DNS, '|', FROM, '|', TO, '|', RegExpsReason[REASON]+' spamtrap')
+                                        logit('(Alert)',IP,country, '('+str(smtp_to_spamtrap[IP])+')', '|', DNS, '|', FROM, '|', TO, '|', RegExpsReason[REASON]+' spamtrap')
                         else:
                             IP, DNS, FROM, TO = m.group(2), m.group(1), None, None
                         if DNS != 'unknown': # we won't stop IP with reverse lookup on these rules
@@ -465,8 +461,7 @@ if __name__ == "__main__":
             print "Main: file di configurazione letti: ",' - '.join(confp)
             del confp
         else:
-            print "Main: nessun file di configurazione valido"
-            sys.exit(-1)
+            sys.exit("Main: no good config file")
         # Locks
         lock_output_log_file = multiprocessing.Lock()
         lock_cidr            = multiprocessing.Lock()
@@ -484,12 +479,10 @@ if __name__ == "__main__":
         try:
             log_file = open(output_log_file, 'a')
         except:
-            print "Main: non posso creare il file di log: ",log_file
-            sys.exit(-1)
+            sys.exit("Main: failed creating log file: "+log_file)
         uce_dir          = configurazione.get('Generali', 'uce_dir')
         if not uce_dir.startswith('/'):
-            print "Main: il percordo di uce_dir",uce_dir,"deve essere assoluto"
-            sys.exit(-1)
+            sys.exit("Main: uce_dir wants absolute path "+uce_dir)
         if not uce_dir.endswith('/'):
             uce_dir = uce_dir + '/'
         if not os.path.exists(uce_dir): # se non esiste la directory per rbl
@@ -498,8 +491,7 @@ if __name__ == "__main__":
             logit("è stata creata la directory", uce_dir)
         else:
             if not os.path.isdir(uce_dir): # se non si tratta di una directory
-                print "Main: ",uce_dir," non è una directory. Non posso utilizzarla."
-                sys.exit(-1)
+                sys.exit("Main: "+uce_dir+" is not a directory, as required.")
         ore_di_blocco    = configurazione.getint('Generali', 'ore_di_blocco')
         # GeoIP
         geoip_db_file    = configurazione.get('Generali', 'geoip_db_file')
@@ -512,8 +504,7 @@ if __name__ == "__main__":
         try:
             file_mrtg_stats  = open(file_mrtg, 'w')
         except:
-            print "Main: impossibile creare il file per MRTG:",file_mrtg_stats
-            sys.exit(-1)
+            sys.exit("Main: failed creating MRTG file: "+file_mrtg_stats)
         # PBL
         pbl_email        = configurazione.get('Generali', 'pbl_email')
         pbl_url          = configurazione.get('Generali', 'pbl_url')
@@ -536,24 +527,21 @@ if __name__ == "__main__":
     if True: # controllo degli eseguibili necessari
         for cmd in ['/usr/bin/wget','./cidrmerge']:
             if not os.path.isfile(cmd):
-                print "Main: I can't find",cmd
-                sys.exit(-1)
+                sys.exit("Main: I can't find "+cmd)
 
     if True: # controllo istanze attive
         if os.path.isfile(pidfile): # controllo istanze attive
             if os.path.isdir('/proc/' + str(file(pidfile,'r').read())):
-                print "Main: probabile ci sia un'altra istanza già in esecuzione di Fucklog. Se così non fosse, elimina",pidfile
-                sys.exit(-1)
+                sys.exit("Main: maybe another Fucklog is running. If not, please delete "+pidfile)
             else:
-                print "Main: stale pidfile rimosso."
+                print "Main: stale pidfile removed."
         file(pidfile,'w').write(str(os.getpid()))
 
     if True: # avvio e ripristino delle regole di IpTables
         try:
             opts, args = getopt.getopt(sys.argv[1:], "e", ["evita-ripristino-iptables"])
         except getopt.GetoptError:
-            print "Main: opzioni non valide:",sys.argv[1:]
-            sys.exit(-1)
+            sys.exit("Main: unknown options"+sys.argv[1:])
         evita_ripristino_iptables = False
         db = connetto_db()
         for opt, a in opts:
@@ -575,8 +563,7 @@ if __name__ == "__main__":
     if True: # controllo validità del file di log
         if not os.path.isfile(postfix_log_file):
             logit("log file inutilizzabile:", postfix_log_file," - Inesistente? Non è un file?")
-            print "File di log inutilizzabile. Controllare", postfix_log_file
-            sys.exit(-1)
+            sys.exit("Main: I can't use "+postfix_log_file)
 
     if True: # partenza dei thread
         elenco_thread = []
