@@ -525,7 +525,7 @@ if __name__ == "__main__":
         NULL = open("/dev/null", "w")
 
     if True: # controllo degli eseguibili necessari
-        for cmd in ['/usr/bin/wget','./cidrmerge']:
+        for cmd in ['./cidrmerge']:
             if not os.path.isfile(cmd):
                 sys.exit("Main: I can't find "+cmd)
 
