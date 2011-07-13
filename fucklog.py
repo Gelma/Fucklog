@@ -529,8 +529,8 @@ if __name__ == "__main__":
             if not os.path.isfile(cmd):
                 sys.exit("Main: I can't find "+cmd)
 
-    if True: # controllo istanze attive
-        if os.path.isfile(pidfile): # controllo istanze attive
+    if True: # I want to be the one...
+        if os.path.isfile(pidfile):
             if os.path.isdir('/proc/' + str(file(pidfile,'r').read())):
                 sys.exit("Main: maybe another Fucklog is running. If not, please delete "+pidfile)
             else:
