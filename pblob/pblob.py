@@ -5,6 +5,10 @@ import socket
 import time
 
 socket.setdefaulttimeout(60) # Set timeout connection for urllib2
+regexp_pbl = re.compile('<LI><a href="([^"]+)">PBL([0-9]+)</a><br>')
+regexp_cidr = re.compile('<font color="red">([^<]+)</font> is listed on the Policy Block List \(PBL\)</span><br>')
+_header = {"User-Agent": "Opera/9.80 (X11; Linux i686; U; it) Presto/2.9.168 Version/11.50",
+		   "Accept": "text/html"}
 
 class sphPBL:
 	"""Give me an IP, I'll give you back its complete Spamhaus PBL cidr"""
@@ -13,9 +17,6 @@ class sphPBL:
 	pbl_num = None
 	pbl_url = None
 	cidr = None
-
-	_header = {"User-Agent": "Opera/9.80 (X11; Linux i686; U; it) Presto/2.9.168 Version/11.50",
-			   "Accept": "text/html"}
 
 	def __init__(self,ip=None):
 		if (ip != None):
@@ -40,22 +41,23 @@ class sphPBL:
 		if (self.ip == None):
 			return 1
 		req_url = "http://www.spamhaus.org/query/bl?ip=%s" % self.ip
-		req = urllib2.Request(req_url,None,self._header)
+		req = urllib2.Request(req_url, None, _header)
 		page = self._read_webpage(req)
-		reg = re.compile('<LI><a href="([^"]+)">PBL([0-9]+)</a><br>')
-		m = re.findall(reg, page)
+		print "Ora innesco la richiesta pbl"
+		m = re.findall(regexp_pbl, page)
+		print "Fine richiesta pbl"
 		if (m != []):
 			self.pbl_url = m[0][0]
 			self.pbl_num = m[0][1]
+		print "Ritorno pbl"
 		return 0
 
 	def _fetch_cidr(self):
 		if (self.pbl_url == None):
 			return 1
-		req = urllib2.Request(self.pbl_url,None,self._header)
+		req = urllib2.Request(self.pbl_url, None, _header)
 		page = self._read_webpage(req)
-		reg = re.compile('<font color="red">([^<]+)</font> is listed on the Policy Block List \(PBL\)</span><br>')
-		m = re.findall(reg, page)
+		m = re.findall(regexp_cidr, page)
 		if (m != []):
 			self.cidr = m[0]
 		return 0
