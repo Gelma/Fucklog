@@ -13,7 +13,8 @@ class sphPBL:
 	pbl_url = None
 	cidr = None
 
-	_header = {"User-Agent":"Mozilla/5.0 (X11; U; Linux i686; it; rv:1.9.2.12) Gecko/20101027 Ubuntu/10.04 (lucid) Firefox/3.6.12", "Accept":"text/html"}
+	_header = {"User-Agent": "Opera/9.80 (X11; Linux i686; U; it) Presto/2.9.168 Version/11.50",
+			   "Accept": "text/html"}
 
 	def __init__(self,ip=None):
 		if (ip != None):
