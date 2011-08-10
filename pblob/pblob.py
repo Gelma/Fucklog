@@ -2,6 +2,7 @@
 import urllib2
 import re
 import socket
+import time
 
 socket.setdefaulttimeout(60) # Set timeout connection for urllib2
 
@@ -26,12 +27,21 @@ class sphPBL:
 		self._fetch_cidr()
 		return 0
 
+	def _read_webpage(self, req):
+		while True:
+			try:
+				return urllib2.urlopen(req).read()
+				break
+			except:
+				print "Failed SpamHaus request. Retry in 2 minutes."
+				time.sleep(120)
+
 	def _fetch_pbl(self):
 		if (self.ip == None):
 			return 1
 		req_url = "http://www.spamhaus.org/query/bl?ip=%s" % self.ip
 		req = urllib2.Request(req_url,None,self._header)
-		page = urllib2.urlopen(req).read()
+		page = self._read_webpage(req)
 		reg = re.compile('<LI><a href="([^"]+)">PBL([0-9]+)</a><br>')
 		m = re.findall(reg, page)
 		if (m != []):
@@ -43,7 +53,7 @@ class sphPBL:
 		if (self.pbl_url == None):
 			return 1
 		req = urllib2.Request(self.pbl_url,None,self._header)
-		page = urllib2.urlopen(req).read()
+		page = self._read_webpage(req)
 		reg = re.compile('<font color="red">([^<]+)</font> is listed on the Policy Block List \(PBL\)</span><br>')
 		m = re.findall(reg, page)
 		if (m != []):
