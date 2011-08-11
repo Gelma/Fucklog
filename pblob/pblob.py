@@ -43,13 +43,10 @@ class sphPBL:
 		req_url = "http://www.spamhaus.org/query/bl?ip=%s" % self.ip
 		req = urllib2.Request(req_url, None, _header)
 		page = self._read_webpage(req)
-		print "Ora innesco la richiesta pbl"
 		m = re.findall(regexp_pbl, page)
-		print "Fine richiesta pbl"
 		if (m != []):
 			self.pbl_url = m[0][0]
 			self.pbl_num = m[0][1]
-		print "Ritorno pbl"
 		return 0
 
 	def _fetch_cidr(self):
