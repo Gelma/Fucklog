@@ -6,7 +6,7 @@ if True: # import dei moduli
         import ConfigParser, datetime, getopt, inspect, multiprocessing, os, random, re, shlex, subprocess, sys, time, urllib
     except:
         import sys
-        sys.exit("Main: troubles importing standard modules. Check your Python release?")
+        sys.exit("Main: troubles importing standard modules. Check your Python release.")
 
     try: # quelli esterni
         import MySQLdb
