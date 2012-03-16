@@ -7,8 +7,8 @@ import time
 socket.setdefaulttimeout(60) # Set timeout connection for urllib2
 regexp_pbl = re.compile('<LI><a href="([^"]+)">PBL([0-9]+)</a><br>')
 regexp_cidr = re.compile('<font color="red">([^<]+)</font> is listed on the Policy Block List \(PBL\)</span><br>')
-_header = {"User-Agent": "Opera/9.80 (X11; Linux i686; U; it) Presto/2.9.168 Version/11.50",
-		   "Accept": "text/html"}
+_header = {	"User-Agent": "Opera/9.80 (X11; Linux i686; U; it) Presto/2.9.168 Version/11.50",
+		"Accept": "text/html"}
 
 class sphPBL:
 	"""Give me an IP, I'll give you back its complete Spamhaus PBL cidr"""
@@ -45,7 +45,7 @@ class sphPBL:
 		page = self._read_webpage(req)
 		m = re.findall(regexp_pbl, page)
 		if (m != []):
-			self.pbl_url = m[0][0]
+			self.pbl_url = "http://www.spamhaus.org%s" % m[0][0]
 			self.pbl_num = m[0][1]
 		return 0
 
