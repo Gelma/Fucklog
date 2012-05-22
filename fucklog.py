@@ -218,12 +218,12 @@ def lettore():
                                 if smtp_to_spamtrap[IP] == 9:
                                         if not gia_in_blocco(IP):
                                                 blocca_in_iptables(IP, 6)
-                                                logit(IP, '|', country, DNS, '|', FROM, '|', TO, '|', RegExpsReason[REASON]+' spamtrap')
+                                                logit(pretty_ip(IP), '|', country, DNS, '|', FROM, '|', TO, '|', RegExpsReason[REASON]+' spamtrap')
                                                 body = 'SMTP: %s - %s - %s' % (country, DNS, IP)
                                                 send_email_pbl(body) # This is not about PBL. Anyway...
                                                 continue
                                 else:
-                                        logit('(Alert)',IP,country, '('+str(smtp_to_spamtrap[IP])+')', '|', DNS, '|', FROM, '|', TO, '|', RegExpsReason[REASON]+' spamtrap')
+                                        logit('(Alert)',pretty(IP),country, '('+str(smtp_to_spamtrap[IP])+')', '|', DNS, '|', FROM, '|', TO, '|', RegExpsReason[REASON]+' spamtrap')
                         else:
                             IP, DNS, FROM, TO = m.group(2), m.group(1), None, None
                         if DNS != 'unknown': # we won't stop IP with reverse lookup on these rules
@@ -276,7 +276,7 @@ def lettore():
                             indirizzo_da_bloccare = IP
                         if Debug: logit(IP, 'bloccato con moltiplicatore', bloccalo_per)
                         blocca_in_iptables(indirizzo_da_bloccare, bloccalo_per)
-                        logit(indirizzo_da_bloccare, '|', bloccalo_per, '|', DNS, '|', FROM, '|', TO, '|', RegExpsReason[REASON])
+                        logit(pretty_ip(indirizzo_da_bloccare), '|', bloccalo_per, '|', DNS, '|', FROM, '|', TO, '|', RegExpsReason[REASON])
                     break # we stop to try RegExps after first match
 
 def logit(*args):
@@ -356,6 +356,17 @@ def pbl_expire():
                     db.execute("update PBL set LASTUPDATE=CURRENT_TIMESTAMP where CIDR=%s", (CIDR,))
                 time.sleep(query_interval)
 
+def pretty_ip(IP):
+    """Formatto l'IP che ricevo in modo uniforme a tutti gli altri, principalmente per i log"""
+
+    try:
+        ip, cidr = str(IP).split('/')
+    except: # sono un ip singolo
+        return "%03d.%03d.%03d.%03d" % tuple([int(x) for x in IP.split('.')])
+
+    ipn = "%03d.%03d.%03d.%03d" % tuple([int(x) for x in ip.split('.')])
+    return "%s/%s" % (ipn,cidr)
+
 def rimozione_ip_vecchi():
     """Leggo Ip->Fucklog->MySQL e rimuovo gli IP che da più di 4 mesi non spammano"""
     # select count(*) as conta,cast(DATE as date) as quando from IP group by quando order by quando;
@@ -378,7 +389,7 @@ def scadenza_iptables():
         db.execute('select IP from BLOCKED where END < CURRENT_TIMESTAMP()')
         for IP in db.fetchall():
             if subprocess.call(['/sbin/iptables', '-D', 'fucklog', '-s', IP[0], '--protocol', 'tcp', '--dport', '25', '-j', 'DROP'], shell=False):
-                logit('errore su rimozione', IP[0])
+                logit('errore su rimozione', pretty_ip(IP[0]))
                 continue
             else:
                 db.execute('delete from BLOCKED where IP=%s', (IP[0],))
