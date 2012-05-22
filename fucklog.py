@@ -223,7 +223,7 @@ def lettore():
                                                 send_email_pbl(body) # This is not about PBL. Anyway...
                                                 continue
                                 else:
-                                        logit('(Alert)',pretty(IP),country, '('+str(smtp_to_spamtrap[IP])+')', '|', DNS, '|', FROM, '|', TO, '|', RegExpsReason[REASON]+' spamtrap')
+                                        logit('(Alert)',pretty_ip(IP),country, '('+str(smtp_to_spamtrap[IP])+')', '|', DNS, '|', FROM, '|', TO, '|', RegExpsReason[REASON]+' spamtrap')
                         else:
                             IP, DNS, FROM, TO = m.group(2), m.group(1), None, None
                         if DNS != 'unknown': # we won't stop IP with reverse lookup on these rules
