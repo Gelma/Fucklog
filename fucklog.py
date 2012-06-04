@@ -3,7 +3,7 @@
 
 if True: # import dei moduli
     try: # quelli builtin
-        import ConfigParser, datetime, getopt, inspect, multiprocessing, os, random, re, shlex, subprocess, sys, time, urllib
+        import ConfigParser, datetime, getopt, inspect, multiprocessing, os, random, re, shlex, subprocess, sys, time
     except:
         import sys
         sys.exit("Main: troubles importing standard modules. Check your Python release.")
