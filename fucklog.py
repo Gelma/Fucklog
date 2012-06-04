@@ -550,26 +550,35 @@ if __name__ == "__main__":
 
     if True: # avvio e ripristino delle regole di IpTables
         try:
-            opts, args = getopt.getopt(sys.argv[1:], "e", ["evita-ripristino-iptables"])
+            opts, args = getopt.getopt(sys.argv[1:], "ei", ["evita-ripristino-iptables","ipset"])
         except getopt.GetoptError:
             sys.exit("Main: unknown options"+sys.argv[1:])
         evita_ripristino_iptables = False
         db = connetto_db()
+        IPSet = False
         for opt, a in opts:
             if opt in ('-e', '--evita-ripristino-iptables'):
                 evita_ripristino_iptables = True
             logit("avvio")
+            if opt in ('-i', '--ipset'):
+                IPSetPath = '/usr/sbin/ipset'
+                IPSet = True if os.path.isfile(IPSetPath) else False # I use IPSET if available
         if evita_ripristino_iptables is False:
-            logit('ripristino IpTables')
-            if not subprocess.call(shlex.split("/sbin/iptables -L fucklog -n"), stdout=NULL): # se esiste la catena fucklog
-                subprocess.call(shlex.split("/sbin/iptables -F fucklog")) # la svuoto
+            if IPSet:
+                logit('Setup IPSet')
+                # ipset create gino hash:net timeout 0 family inet maxelem 1000000
+                pass
             else:
-                subprocess.call(shlex.split("/sbin/iptables -N fucklog")) # diversamente la creo
-            if (subprocess.Popen(shlex.split("/sbin/iptables -L INPUT -n"), stdout=subprocess.PIPE).stdout.read().find("fucklog") == -1): # se non esiste il jump
-                subprocess.call(shlex.split("/sbin/iptables -A INPUT -p tcp --dport 25 -j fucklog")) # lo creo
-            db.execute('delete from BLOCKED where END < CURRENT_TIMESTAMP()') # disintegro le regole scadute nel frattempo
-            db.execute('select IP from BLOCKED order by END') # e ripopolo
-            for IP in db.fetchall(): subprocess.call(shlex.split("/sbin/iptables -A 'fucklog' -s "+IP[0]+" --protocol tcp --dport 25 -j DROP"))
+                logit('ripristino IpTables')
+                if not subprocess.call(shlex.split("/sbin/iptables -L fucklog -n"), stdout=NULL): # se esiste la catena fucklog
+                    subprocess.call(shlex.split("/sbin/iptables -F fucklog")) # la svuoto
+                else:
+                    subprocess.call(shlex.split("/sbin/iptables -N fucklog")) # diversamente la creo
+                if (subprocess.Popen(shlex.split("/sbin/iptables -L INPUT -n"), stdout=subprocess.PIPE).stdout.read().find("fucklog") == -1): # se non esiste il jump
+                    subprocess.call(shlex.split("/sbin/iptables -A INPUT -p tcp --dport 25 -j fucklog")) # lo creo
+                db.execute('delete from BLOCKED where END < CURRENT_TIMESTAMP()') # disintegro le regole scadute nel frattempo
+                db.execute('select IP from BLOCKED order by END') # e ripopolo
+                for IP in db.fetchall(): subprocess.call(shlex.split("/sbin/iptables -A 'fucklog' -s "+IP[0]+" --protocol tcp --dport 25 -j DROP"))
 
     if True: # controllo validità del file di log
         if not os.path.isfile(postfix_log_file):
