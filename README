@@ -1,4 +1,4 @@
-== Cos'e' fucklokg? ==
+== Cos'e' fucklog? ==
 Fucklog è uno script in Python che legge i log di postfix, al fine di scovare
 "spammatori già noti", per bloccarne il traffico direttamente
 da netfilter, per un periodo di tempo variabile a seconda della loro insistenza. :)
@@ -13,7 +13,6 @@ Inoltre utilizza software esterni quali:
 - mysql:		per la conservazione dei dati
 - iptables:		per interagire con netfilter :)
 - mrtg:			per realizzare bellissimi grafici :)
-- wget:			per prelevare la lista lasso
 
 Per installare il tutto sotto Debian e derivate:
 apt-get install python-mysqldb python rsync mrtg iptables mysql-server
