@@ -13,6 +13,7 @@ Inoltre utilizza software esterni quali:
 - mysql:		per la conservazione dei dati
 - iptables:		per interagire con netfilter :)
 - mrtg:			per realizzare bellissimi grafici :)
+- cidrmerge		per accorpare le sequenze di IP ( http://cidrmerge.sourceforge.net/ )
 
 Per installare il tutto sotto Debian e derivate:
 apt-get install python-mysqldb python rsync mrtg iptables mysql-server
