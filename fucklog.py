@@ -102,6 +102,16 @@ def blocca_in_iptables(indirizzo_da_bloccare, bloccalo_per):
             logit('fallito inserimento', indirizzo_da_bloccare)
         db.close()
 
+    try:
+        contatore = int(open('/tmp/.cont_fucklog.raw','r').read()) + 1
+    except:
+        contatore = 1
+
+    c=str(contatore)
+    ckb=str(contatore)
+    open('/tmp/.cont_fucklog.txt','w').write('0\n'+ckb+'\n'+c+'/'+c+'\nrate\n')
+    open('/tmp/.cont_fucklog.raw','w').write(str(contatore))
+
 def block_all_cidr():
     """I block all CIDR for a week"""
 
@@ -215,7 +225,7 @@ def lettore():
                                         smtp_to_spamtrap[IP] += 1
                                 except:
                                         smtp_to_spamtrap[IP]  = 1
-                                if smtp_to_spamtrap[IP] == 9:
+                                if smtp_to_spamtrap[IP] == 30:
                                         if not gia_in_blocco(IP):
                                                 blocca_in_iptables(IP, 6)
                                                 logit(pretty_ip(IP), '|', country, DNS, '|', FROM, '|', TO, '|', RegExpsReason[REASON]+' spamtrap')
@@ -226,7 +236,7 @@ def lettore():
                                         logit('(Alert)',pretty_ip(IP),country, '('+str(smtp_to_spamtrap[IP])+')', '|', DNS, '|', FROM, '|', TO, '|', RegExpsReason[REASON]+' spamtrap')
                         else:
                             IP, DNS, FROM, TO = m.group(2), m.group(1), None, None
-                        if DNS != 'unknown': # we won't stop IP with reverse lookup on these rules
+                        if DNS != 'unknown' and ' after AUTH ' not in log_line: # we won't stop IP with reverse lookup on these rules
                             break        # we could match/block the good ones
                     if IP == 'unknown':
                         continue
@@ -368,13 +378,13 @@ def pretty_ip(IP):
     return "%s/%s" % (ipn,cidr)
 
 def rimozione_ip_vecchi():
-    """Leggo Ip->Fucklog->MySQL e rimuovo gli IP che da più di 4 mesi non spammano"""
+    """Leggo Ip->Fucklog->MySQL e rimuovo gli IP che da più di 12 mesi non spammano"""
     # select count(*) as conta,cast(DATE as date) as quando from IP group by quando order by quando;
 
     while True:
         time.sleep(14400)
         db = connetto_db()
-        db.execute('delete from IP where DATE < (CURRENT_TIMESTAMP() - INTERVAL 4 MONTH)')
+        db.execute('delete from IP where DATE < (CURRENT_TIMESTAMP() - INTERVAL 12 MONTH)')
         if db.rowcount != 0:
             logit('rimossi', db.rowcount, 'IP')
         db.close()
@@ -385,7 +395,7 @@ def scadenza_iptables():
     db = connetto_db()
 
     while True:
-        time.sleep(1800) # ogni mezz'ora
+        time.sleep(240) # ogni quattro minuti
         db.execute('select IP from BLOCKED where END < CURRENT_TIMESTAMP()')
         for IP in db.fetchall():
             if subprocess.call(['/sbin/iptables', '-D', 'fucklog', '-s', IP[0], '--protocol', 'tcp', '--dport', '25', '-j', 'DROP'], shell=False):
@@ -393,7 +403,7 @@ def scadenza_iptables():
                 continue
             else:
                 db.execute('delete from BLOCKED where IP=%s', (IP[0],))
-                if Debug: logit('segato', IP[0])
+                logit('IPTables sbloccato', IP[0])
 
 def statistiche_mrtg():
     """Aggiorno a cadenza fissa le statistiche per MRTG"""
