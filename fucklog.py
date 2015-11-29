@@ -266,14 +266,15 @@ def lettore():
                                 except db.IntegrityError:
                                     db.execute("update IP set DNS=%s, FROOM=%s, TOO=%s, REASON=%s, LINE=%s, counter=counter+1, DATE=CURRENT_TIMESTAMP where IP=INET_ATON(%s)", (DNS, FROM, TO, REASON, log_line, IP))
                         else: # se non ricado in nessuna classe nota, opero sulla singola voce
-                            if ip_in_pbl(IP): # se risulta in PBL, ma non nelle CIDR, interrogo spamhaus
-                                if Debug: logit(IP, 'in PBL. Looking for complete CIDR.')
-                                try:
-                                        get_pbl_from_spamhaus(IP)
-                                except: # Fix this terrible hack
-                                        time.sleep(300)
-                                        logit(' (warn) failed Spamhaus query for', IP)
-                                        get_pbl_from_spamhaus(IP)
+                            pass
+                            #if ip_in_pbl(IP): # se risulta in PBL, ma non nelle CIDR, interrogo spamhaus
+                            #    if Debug: logit(IP, 'in PBL. Looking for complete CIDR.')
+                            #    try:
+                            #            get_pbl_from_spamhaus(IP)
+                            #    except: # Fix this terrible hack
+                            #            time.sleep(300)
+                            #            logit(' (warn) failed Spamhaus query for', IP)
+                            #            get_pbl_from_spamhaus(IP)
                             db.execute('select COUNTER from IP where IP=INET_ATON(%s)', (IP,)) # ricavo fino a quando bloccarlo
                             if db.rowcount:
                                 bloccalo_per = db.fetchone()[0] + 1
@@ -337,6 +338,8 @@ def pbl_latest_check():
 
 def pbl_expire():
     """I check all the PBL entries older than 2 months."""
+
+    return # disabling PBL requests for the moment
 
     dadi = random.SystemRandom()
     query_interval = 24 # Sleeping time between queries. So we can check 3600 CIDR/day
