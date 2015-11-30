@@ -102,6 +102,15 @@ def blocca_in_iptables(indirizzo_da_bloccare, bloccalo_per):
             logit('fallito inserimento', indirizzo_da_bloccare)
         db.close()
 
+    # IpSet
+    per_quanti_secondi = ore_di_blocco * bloccalo_per * 3600
+    if per_quanti_secondi > 4294900: # ipset v6.20.1: Syntax error: '4680000' is out of range 0-4294967
+        per_quanti_secondi = 4294900
+
+    # Aggiungere exists a comando ipset?
+    subprocess.call(['/sbin/ipset', '-A', 'fucklog', indirizzo_da_bloccare, '--timeout', str(per_quanti_secondi)], shell=False)
+    # fine IpSet
+
     try:
         contatore = int(open('/tmp/.cont_fucklog.raw','r').read()) + 1
     except:
@@ -549,7 +558,7 @@ if __name__ == "__main__":
         NULL = open("/dev/null", "w")
 
     if True: # controllo degli eseguibili necessari
-        for cmd in ['./cidrmerge']:
+        for cmd in ['./cidrmerge','/sbin/iptables']:
             if not os.path.isfile(cmd):
                 sys.exit("Main: I can't find "+cmd)
 
@@ -574,21 +583,18 @@ if __name__ == "__main__":
                 evita_ripristino_iptables = True
             logit("avvio")
             if opt in ('-i', '--ipset'):
-                IPSetPath = '/usr/sbin/ipset'
+                IPSetPath = '/sbin/ipset'
                 IPSet = True if os.path.isfile(IPSetPath) else False # I use IPSET if available
-        if evita_ripristino_iptables is False:
-            if IPSet:
-                logit('Setup IPSet')
-                # ipset create gino hash:net timeout 0 family inet maxelem 1000000
-                pass
-            else:
+        if evita_ripristino_iptables is not False:
                 logit('ripristino IpTables')
                 if not subprocess.call(shlex.split("/sbin/iptables -L fucklog -n"), stdout=NULL): # se esiste la catena fucklog
                     subprocess.call(shlex.split("/sbin/iptables -F fucklog")) # la svuoto
                 else:
                     subprocess.call(shlex.split("/sbin/iptables -N fucklog")) # diversamente la creo
+                    subprocess.call(shlex.split("/sbin/ipset --exist create fucklog hash:net maxelem 1000000 timeout 0"), stdout=NULL) # parameter --exists avoid duplication
                 if (subprocess.Popen(shlex.split("/sbin/iptables -L INPUT -n"), stdout=subprocess.PIPE).stdout.read().find("fucklog") == -1): # se non esiste il jump
                     subprocess.call(shlex.split("/sbin/iptables -A INPUT -p tcp --dport 25 -j fucklog")) # lo creo
+                    subprocess.call(shlex.split("/sbin/iptables -I INPUT  -m set --match-set fucklog src -p TCP --destination-port 25 -j DROP")) # e creo anche il jump ipset
                 db.execute('delete from BLOCKED where END < CURRENT_TIMESTAMP()') # disintegro le regole scadute nel frattempo
                 db.execute('select IP from BLOCKED order by END') # e ripopolo
                 for IP in db.fetchall(): subprocess.call(shlex.split("/sbin/iptables -A 'fucklog' -s "+IP[0]+" --protocol tcp --dport 25 -j DROP"))
@@ -625,7 +631,7 @@ if __name__ == "__main__":
             file_mrtg_stats.close()
             log_file.close()
             os.remove(pidfile)
-            print "Eventualmente ricordati svuotare le regole di IpTables."
+            print "Eventualmente ricordati di svuotare le regole di IpTables."
             sys.exit()
         if command == "a":
             print "aggiornamento Cidr"
